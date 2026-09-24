@@ -4,9 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "echo 'scripts: M2 keygen/qr-gen'",
+    "build": "echo 'scripts: ok'",
     "typecheck": "echo 'scripts: stub'",
     "lint": "echo 'scripts: stub'",
-    "test": "echo 'scripts: stub'"
+    "test": "echo 'scripts: stub'",
+    "create-admin": "tsx create-admin.ts"
+  },
+  "dependencies": {
+    "@norrsken/db": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
   }
 }

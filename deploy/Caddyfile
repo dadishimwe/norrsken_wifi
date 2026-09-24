@@ -1,8 +1,9 @@
 :80 {
-  # Strip client IP from access logs (privacy)
+  # Do not log client IPs (privacy for reporters)
   log {
     output discard
   }
 
+  # Ops dashboard + API
   reverse_proxy api:3000
 }

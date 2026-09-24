@@ -40,6 +40,12 @@ async function migrate() {
   try {
     if (reset) {
       await client.query(`
+        drop view if exists v_kpi_daily cascade;
+        drop view if exists v_open_incidents cascade;
+        drop view if exists v_recent_reports cascade;
+        drop view if exists v_zone_health cascade;
+        drop table if exists ops_session cascade;
+        drop table if exists ops_user cascade;
         drop table if exists hash_anchor cascade;
         drop table if exists session_state cascade;
         drop table if exists rate_bucket cascade;

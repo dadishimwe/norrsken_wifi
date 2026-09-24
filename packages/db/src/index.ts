@@ -24,3 +24,21 @@ export {
 export { canonicalJson, computeRowHash, type HashableReport } from "./hash-chain.js";
 export { anchorHashChain } from "./anchor.js";
 export { ZONES } from "./zones-data.js";
+export {
+  hashPassword,
+  verifyPassword,
+  hashSessionToken,
+  countOpsUsers,
+  createOpsUser,
+  listOpsUsers,
+  getOpsUserByUsername,
+  getOpsUserById,
+  setOpsUserActive,
+  setOpsUserPassword,
+  createOpsSession,
+  revokeOpsSession,
+  resolveOpsSession,
+  purgeExpiredOpsSessions,
+  type OpsUser,
+  type OpsRole,
+} from "./ops-auth.js";

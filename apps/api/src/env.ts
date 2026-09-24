@@ -16,7 +16,12 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v !== "false" && v !== "0"),
+  /** @deprecated Prefer ops user accounts; kept for emergency override */
   OPS_TOKEN: z.string().optional(),
+  OPS_ADMIN_USERNAME: z.string().optional(),
+  OPS_ADMIN_PASSWORD: z.string().optional(),
+  OPS_ADMIN_DISPLAY_NAME: z.string().optional(),
+  OPS_STATIC_DIR: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

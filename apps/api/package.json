@@ -12,6 +12,7 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.4",
     "@norrsken/db": "workspace:*",
     "@norrsken/shared": "workspace:*",
     "fastify": "^5.2.0",
