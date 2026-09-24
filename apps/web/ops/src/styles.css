@@ -103,6 +103,40 @@ a {
   display: block;
 }
 
+.brand-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 0.1rem;
+}
+
+.partner-logo {
+  height: 18px;
+  width: auto;
+  display: block;
+  opacity: 0.9;
+}
+
+.partner-logo-top {
+  height: 18px;
+}
+
+.login-partner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.15rem;
+}
+
+.login-partner .muted {
+  font-size: 0.8rem;
+}
+
+.login-partner .partner-logo {
+  height: 20px;
+}
+
 .brand-meta {
   display: flex;
   flex-direction: column;

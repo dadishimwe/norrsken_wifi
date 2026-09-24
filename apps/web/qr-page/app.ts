@@ -143,6 +143,12 @@ async function run(b: Bootstrap) {
 
     root.innerHTML = `
       <header class="header">
+        <div class="brand-row">
+          <img class="logo-norrsken" src="/qr/norrsken-logo-dark.svg" alt="Norrsken" width="120" height="16" />
+          <span class="brand-dot" aria-hidden="true"></span>
+          <img class="logo-zuba" src="/qr/zuba-logo-on-light.png" alt="Zuba Broadband" width="72" height="16"
+            onerror="this.style.display='none'" />
+        </div>
         <p class="eyebrow">Network feedback</p>
         <div class="zone-row">
           <h1 class="zone-label">${escapeHtml(zoneLabel)}</h1>

@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { opsApi, type OpsZone, type ZoneQr } from "./api";
+import { buildPrintFlyerHtml } from "./printFlyer";
 
 function slugify(label: string): string {
   return label
@@ -10,6 +11,10 @@ function slugify(label: string): string {
     .replace(/^-|-$/g, "")
     .slice(0, 64);
 }
+
+type QrState = ZoneQr & {
+  zone: { id: string; label: string; floor: string | null; kind: string };
+};
 
 type Props = { canEdit: boolean };
 
@@ -22,7 +27,7 @@ export function ZonesAdmin({ canEdit }: Props) {
   const [floor, setFloor] = useState("");
   const [kind, setKind] = useState<"area" | "booth" | "event" | "common">("area");
   const [busy, setBusy] = useState(false);
-  const [qr, setQr] = useState<(ZoneQr & { zone: { id: string; label: string } }) | null>(null);
+  const [qr, setQr] = useState<QrState | null>(null);
   const [editing, setEditing] = useState<OpsZone | null>(null);
 
   function flash(msg: string) {
@@ -154,28 +159,7 @@ export function ZonesAdmin({ canEdit }: Props) {
     if (!qr) return;
     setError(null);
 
-    // Print via a same-origin iframe — no pop-up (browsers block window.open here).
-    const html = `<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"/>
-<title>Print QR · ${escapeAttr(qr.zone.label)}</title>
-<style>
-  @page { margin: 16mm; }
-  html, body { margin: 0; background: #fff; color: #0a0a0a;
-    font-family: system-ui, -apple-system, sans-serif; }
-  .sheet { max-width: 420px; margin: 24px auto; text-align: center; padding: 8px; }
-  img { width: 280px; height: 280px; }
-  h1 { font-size: 1.35rem; margin: 16px 0 8px; }
-  p { color: #555; margin: 0; }
-  .url { font-size: 11px; word-break: break-all; color: #888; margin-top: 16px; }
-</style></head><body>
-<div class="sheet">
-  <img src="${qr.png_data_url}" alt="QR code"/>
-  <h1>${escapeAttr(qr.zone.label)}</h1>
-  <p>Wi‑Fi problem? Scan (under 10 seconds)</p>
-  <div class="url">${escapeAttr(qr.url)}</div>
-</div>
-</body></html>`;
+    const html = buildPrintFlyerHtml(qr, import.meta.env.BASE_URL);
 
     const prev = document.getElementById("norrsken-print-frame");
     prev?.remove();
@@ -200,7 +184,7 @@ export function ZonesAdmin({ canEdit }: Props) {
     doc.close();
 
     const cleanup = () => {
-      window.setTimeout(() => iframe.remove(), 500);
+      window.setTimeout(() => iframe.remove(), 800);
     };
 
     let printed = false;
@@ -215,23 +199,22 @@ export function ZonesAdmin({ canEdit }: Props) {
       }
     };
 
-    // Wait for the QR image so print isn’t blank
-    const img = doc.querySelector("img");
-    if (img && !img.complete) {
-      img.onload = () => trigger();
-      img.onerror = () => trigger();
-      window.setTimeout(trigger, 1500);
-    } else {
-      window.setTimeout(trigger, 50);
+    const imgs = [...doc.querySelectorAll("img")];
+    let pending = imgs.filter((img) => !img.complete).length;
+    if (pending === 0) {
+      window.setTimeout(trigger, 80);
+      return;
     }
-  }
-
-  function escapeAttr(s: string): string {
-    return s
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;");
+    const done = () => {
+      pending -= 1;
+      if (pending <= 0) trigger();
+    };
+    imgs.forEach((img) => {
+      if (img.complete) return;
+      img.addEventListener("load", done);
+      img.addEventListener("error", done);
+    });
+    window.setTimeout(trigger, 2000);
   }
 
   return (
@@ -396,13 +379,16 @@ export function ZonesAdmin({ canEdit }: Props) {
                 Copy link
               </button>
               <button className="btn" type="button" onClick={printQr}>
-                Print QR
+                Print flyer
               </button>
               <a className="btn" href={qr.url} target="_blank" rel="noreferrer">
                 Open report page
               </a>
             </div>
-            <p className="muted qr-url-hint">Use Copy link to share — the full URL is on the clipboard.</p>
+            <p className="muted qr-url-hint">
+              Print flyer uses the partnership poster layout with this zone’s location.
+              Add Zuba logos under <code>apps/web/brand/</code> if they don’t appear yet.
+            </p>
           </section>
         ) : (
           <section className="panel">

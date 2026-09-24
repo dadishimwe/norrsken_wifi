@@ -44,6 +44,35 @@ body {
   margin-bottom: 1.25rem;
 }
 
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.logo-norrsken {
+  height: 14px;
+  width: auto;
+  display: block;
+  opacity: 0.9;
+}
+
+.logo-zuba {
+  height: 14px;
+  width: auto;
+  display: block;
+  opacity: 0.75;
+}
+
+.brand-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--dim);
+  flex-shrink: 0;
+}
+
 .eyebrow {
   font-size: 0.72rem;
   letter-spacing: 0.08em;

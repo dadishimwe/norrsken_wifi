@@ -192,5 +192,9 @@ export const opsApi = {
       { method: "DELETE" },
     ),
   zoneQr: (id: string) =>
-    api<ZoneQr & { zone: { id: string; label: string } }>(`/api/ops/zones/${id}/qr`),
+    api<
+      ZoneQr & {
+        zone: { id: string; label: string; floor: string | null; kind: string };
+      }
+    >(`/api/ops/zones/${id}/qr`),
 };

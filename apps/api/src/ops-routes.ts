@@ -315,7 +315,12 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         const host = typeof req.headers.host === "string" ? req.headers.host : undefined;
         const qr = await buildZoneQr(env, zone.id, { host });
         return {
-          zone: { id: zone.id, label: zone.label },
+          zone: {
+            id: zone.id,
+            label: zone.label,
+            floor: zone.floor,
+            kind: zone.kind,
+          },
           ...qr,
         };
       } catch (e) {

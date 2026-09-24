@@ -5,7 +5,7 @@ import { DashboardView } from "./DashboardView";
 import { UsersAdmin } from "./UsersAdmin";
 import { ZonesAdmin } from "./ZonesAdmin";
 import { GraphsView } from "./GraphsView";
-import { BrandLogo, ThemeToggle } from "./BrandLogo";
+import { BrandLogo, PartnerLogo, ThemeToggle } from "./BrandLogo";
 import { useTheme } from "./theme";
 
 type Tab = "dashboard" | "graphs" | "zones" | "users";
@@ -51,6 +51,8 @@ export function App() {
             <strong>Network Ops</strong>
             <span>Norrsken House Kigali</span>
           </div>
+          <span className="brand-sep" aria-hidden="true" />
+          <PartnerLogo theme={theme} className="partner-logo partner-logo-top" />
         </div>
         <div className="topbar-actions">
           <div className="user-chip">
