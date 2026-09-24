@@ -1,12 +1,16 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { opsApi, type OpsUser } from "./api";
+import { BrandLogo, ThemeToggle } from "./BrandLogo";
+import type { Theme } from "./theme";
 
 type Props = {
   onLogin: (user: OpsUser) => void;
+  theme: Theme;
+  onToggleTheme: () => void;
 };
 
-export function LoginPage({ onLogin }: Props) {
+export function LoginPage({ onLogin, theme, onToggleTheme }: Props) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,8 +32,9 @@ export function LoginPage({ onLogin }: Props) {
 
   return (
     <div className="login-page">
+      <ThemeToggle theme={theme} onToggle={onToggleTheme} className="theme-toggle-float" />
       <form className="login-card" onSubmit={onSubmit}>
-        <img className="logo" src={`${import.meta.env.BASE_URL}norrsken-logo-white.svg`} alt="Norrsken" />
+        <BrandLogo theme={theme} className="logo" />
         <h1>Network Ops</h1>
         <p>Sign in with the account your admin created. Reporter traffic stays anonymous.</p>
         {error ? <p className="error">{error}</p> : null}

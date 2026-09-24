@@ -3,10 +3,13 @@ import { opsApi, type OpsUser } from "./api";
 import { LoginPage } from "./LoginPage";
 import { DashboardView } from "./DashboardView";
 import { UsersAdmin } from "./UsersAdmin";
+import { BrandLogo, ThemeToggle } from "./BrandLogo";
+import { useTheme } from "./theme";
 
 type Tab = "dashboard" | "users";
 
 export function App() {
+  const { theme, toggleTheme } = useTheme();
   const [user, setUser] = useState<OpsUser | null>(null);
   const [booting, setBooting] = useState(true);
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -22,13 +25,14 @@ export function App() {
   if (booting) {
     return (
       <div className="login-page">
+        <ThemeToggle theme={theme} onToggle={toggleTheme} className="theme-toggle-float" />
         <p className="muted">Loading…</p>
       </div>
     );
   }
 
   if (!user) {
-    return <LoginPage onLogin={setUser} />;
+    return <LoginPage onLogin={setUser} theme={theme} onToggleTheme={toggleTheme} />;
   }
 
   async function logout() {
@@ -40,7 +44,7 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <img src={`${import.meta.env.BASE_URL}norrsken-logo-white.svg`} alt="Norrsken" />
+          <BrandLogo theme={theme} />
           <div className="brand-meta">
             <strong>Network Ops</strong>
             <span>Norrsken House Kigali</span>
@@ -50,6 +54,7 @@ export function App() {
           <div className="user-chip">
             <em>{user.display_name}</em> · {user.role}
           </div>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <button className="btn btn-ghost" type="button" onClick={logout}>
             Sign out
           </button>
