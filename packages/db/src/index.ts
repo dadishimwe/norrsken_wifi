@@ -5,6 +5,8 @@ export {
   listAllZones,
   createZone,
   updateZone,
+  countReportsForZone,
+  deleteZone,
   zoneHasOpenIncident,
   countRecentReportsInZone,
   insertReport,

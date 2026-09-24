@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { opsApi, type DashboardPayload } from "./api";
+import { downloadCsv, opsApi, type DashboardPayload, type ReportsPage } from "./api";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -18,17 +18,27 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function clarifierText(c: Record<string, unknown> | undefined): string {
+  if (!c || !Object.keys(c).length) return "—";
+  return Object.entries(c)
+    .map(([k, v]) => `${k}: ${String(v)}`)
+    .join("; ");
+}
+
 export function DashboardView() {
   const [data, setData] = useState<DashboardPayload | null>(null);
+  const [reportsPage, setReportsPage] = useState<ReportsPage | null>(null);
+  const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const d = await opsApi.dashboard();
+        const [d, r] = await Promise.all([opsApi.dashboard(), opsApi.reports(page, 25)]);
         if (!cancelled) {
           setData(d);
+          setReportsPage(r);
           setError(null);
         }
       } catch {
@@ -36,17 +46,18 @@ export function DashboardView() {
       }
     }
     load();
-    const id = setInterval(load, 15000);
+    const id = setInterval(load, 20000);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [page]);
 
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;
 
   const kpi = data.kpi;
+  const rows = reportsPage?.reports ?? data.reports;
 
   return (
     <>
@@ -58,6 +69,7 @@ export function DashboardView() {
         <div className="kpi">
           <div className="label">Open incidents</div>
           <div className="value">{fmtNum(kpi?.open_incidents)}</div>
+          <div className="hint">Clustered outages (M4 engine)</div>
         </div>
         <div className="kpi">
           <div className="label">MTTA (30d)</div>
@@ -97,74 +109,130 @@ export function DashboardView() {
 
         <section className="panel">
           <h2>Open incidents</h2>
+          <p className="muted" style={{ marginBottom: "0.75rem" }}>
+            Groups of related reports (same area/time). Empty until the incident engine (M4) runs —
+            individual reports still appear in the feed below.
+          </p>
           {data.incidents.length === 0 ? (
-            <p className="empty">No open incidents. Engine arrives in a later milestone — reports still ingest.</p>
+            <p className="empty">No open incidents yet.</p>
           ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Opened</th>
-                  <th>Scope</th>
-                  <th>Zones</th>
-                  <th>Reports</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.incidents.map((i) => (
-                  <tr key={i.id}>
-                    <td>{timeAgo(i.opened_at)}</td>
-                    <td>{i.status} · {i.scope}</td>
-                    <td>{i.zones.join(", ")}</td>
-                    <td>{fmtNum(i.report_count)}</td>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Opened</th>
+                    <th>Scope</th>
+                    <th>Zones</th>
+                    <th>Reports</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.incidents.map((i) => (
+                    <tr key={i.id}>
+                      <td>{timeAgo(i.opened_at)}</td>
+                      <td>
+                        {i.status} · {i.scope}
+                      </td>
+                      <td>{i.zones.join(", ")}</td>
+                      <td>{fmtNum(i.report_count)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </div>
 
       <section className="panel" style={{ marginTop: "1rem" }}>
-        <h2>Live report feed</h2>
-        {data.reports.length === 0 ? (
-          <p className="empty">No reports yet. Scan a QR or POST /api/reports to try it.</p>
+        <div className="panel-head">
+          <h2>Reports</h2>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => downloadCsv("/api/ops/reports/export.csv", "norrsken-reports.csv")}
+          >
+            Export CSV
+          </button>
+        </div>
+        {rows.length === 0 ? (
+          <p className="empty">No reports yet.</p>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>Zone</th>
-                <th>Symptoms</th>
-                <th>Apps</th>
-                <th>Channel</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.reports.map((r) => (
-                <tr key={r.id}>
-                  <td>{timeAgo(r.created_at)}</td>
-                  <td>{r.zone_label}</td>
-                  <td>
-                    {r.symptoms.map((s) => (
-                      <span className="pill" key={s}>
-                        {s}
-                      </span>
-                    ))}
-                  </td>
-                  <td>
-                    {r.apps.length
-                      ? r.apps.map((a) => (
-                          <span className="pill" key={a}>
-                            {a}
+          <>
+            <div className="table-wrap">
+              <table className="table table-dense">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Zone</th>
+                    <th>Source</th>
+                    <th>Symptoms</th>
+                    <th>Apps</th>
+                    <th>Timing</th>
+                    <th>Wi‑Fi</th>
+                    <th>Clarifiers</th>
+                    <th>Device</th>
+                    <th>Channel</th>
+                    <th>Weight</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id}>
+                      <td title={r.created_at}>{timeAgo(r.created_at)}</td>
+                      <td>{r.zone_label}</td>
+                      <td>{r.zone_source ?? "—"}</td>
+                      <td>
+                        {r.symptoms.map((s) => (
+                          <span className="pill" key={s}>
+                            {s}
                           </span>
-                        ))
-                      : "—"}
-                  </td>
-                  <td>{r.channel}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        ))}
+                      </td>
+                      <td>
+                        {r.apps.length
+                          ? r.apps.map((a) => (
+                              <span className="pill" key={a}>
+                                {a}
+                              </span>
+                            ))
+                          : "—"}
+                      </td>
+                      <td>{r.when_bucket}</td>
+                      <td>{r.wifi_context}</td>
+                      <td className="cell-clamp">{clarifierText(r.clarifiers)}</td>
+                      <td>{r.device_class ?? "—"}</td>
+                      <td>{r.channel}</td>
+                      <td>{fmtNum(r.weight, 1)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {reportsPage ? (
+              <div className="pager">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                <span className="muted">
+                  Page {reportsPage.page} / {reportsPage.total_pages} · {reportsPage.total} total
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={page >= reportsPage.total_pages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            ) : null}
+          </>
         )}
       </section>
     </>

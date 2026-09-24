@@ -4,6 +4,8 @@ import {
   createOpsSession,
   createOpsUser,
   createZone,
+  countReportsForZone,
+  deleteZone,
   getOpsUserByUsername,
   getZone,
   listAllZones,
@@ -211,7 +213,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       const [kpi, zones, reports, incidents] = await Promise.all([
         db.query(`select * from v_kpi_daily`),
         db.query(`select * from v_zone_health`),
-        db.query(`select * from v_recent_reports limit 50`),
+        db.query(`select * from v_reports_full order by created_at desc limit 50`),
         db.query(`select * from v_open_incidents`),
       ]);
 
@@ -321,6 +323,187 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
           error: e instanceof Error ? e.message : "qr_unavailable",
         });
       }
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.delete("/api/ops/zones/:id", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireAdmin(me);
+      const { id } = req.params as { id: string };
+      const force = (req.query as { force?: string }).force === "1";
+      const zone = await getZone(db, id);
+      if (!zone) return reply.code(404).send({ error: "not_found" });
+      const reportCount = await countReportsForZone(db, id);
+      if (reportCount > 0 && !force) {
+        return reply.code(409).send({
+          error: "zone_has_reports",
+          report_count: reportCount,
+          hint: "Disable the zone, or delete with ?force=1 to remove the zone row (reports keep zone_id).",
+        });
+      }
+      // If force with reports, we cannot delete due to FK — disable instead unless no reports
+      if (reportCount > 0 && force) {
+        const updated = await updateZone(db, id, { active: false });
+        return {
+          zone: updated,
+          disabled: true,
+          message: "Zone has reports; disabled instead of deleted.",
+        };
+      }
+      await deleteZone(db, id);
+      return { ok: true, deleted: id };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get("/api/ops/reports", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const q = req.query as { page?: string; limit?: string };
+      const page = Math.max(1, Number(q.page) || 1);
+      const limit = Math.min(100, Math.max(1, Number(q.limit) || 25));
+      const offset = (page - 1) * limit;
+
+      const [countRes, rowsRes] = await Promise.all([
+        db.query<{ n: string }>(`select count(*)::text as n from report`),
+        db.query(
+          `
+          select * from v_reports_full
+          order by created_at desc
+          limit $1 offset $2
+          `,
+          [limit, offset],
+        ),
+      ]);
+      const total = Number(countRes.rows[0]?.n ?? 0);
+      return {
+        page,
+        limit,
+        total,
+        total_pages: Math.max(1, Math.ceil(total / limit)),
+        reports: rowsRes.rows,
+      };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get("/api/ops/reports/export.csv", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const { rows } = await db.query(`select * from v_reports_full order by created_at desc limit 5000`);
+      const header = [
+        "id",
+        "created_at",
+        "channel",
+        "zone_id",
+        "zone_label",
+        "zone_source",
+        "symptoms",
+        "apps",
+        "when_bucket",
+        "wifi_context",
+        "clarifiers",
+        "device_class",
+        "fill_ms",
+        "weight",
+        "incident_id",
+      ];
+      const lines = [header.join(",")];
+      for (const r of rows as Record<string, unknown>[]) {
+        lines.push(
+          header
+            .map((h) => {
+              const v = r[h];
+              const s =
+                v == null
+                  ? ""
+                  : Array.isArray(v)
+                    ? v.join("|")
+                    : typeof v === "object"
+                      ? JSON.stringify(v)
+                      : String(v);
+              return `"${s.replaceAll('"', '""')}"`;
+            })
+            .join(","),
+        );
+      }
+      reply.header("content-type", "text/csv; charset=utf-8");
+      reply.header("content-disposition", 'attachment; filename="norrsken-reports.csv"');
+      return reply.send(lines.join("\n"));
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get("/api/ops/analytics", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const [perDay, apps, symptoms, wifi, zones, kpi] = await Promise.all([
+        db.query(`select * from v_reports_per_day`),
+        db.query(`select * from v_apps_frequency`),
+        db.query(`select * from v_symptoms_frequency`),
+        db.query(`select * from v_wifi_frequency`),
+        db.query(`select * from v_zone_report_totals limit 15`),
+        db.query(`select * from v_kpi_daily`),
+      ]);
+      return {
+        kpi: kpi.rows[0] ?? null,
+        reports_per_day: perDay.rows,
+        apps: apps.rows,
+        symptoms: symptoms.rows,
+        wifi: wifi.rows,
+        top_zones: zones.rows,
+        note: "Open incidents fill when the M4 incident engine clusters reports. Graphs use report data today.",
+      };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get("/api/ops/analytics/export.csv", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const kind = (req.query as { kind?: string }).kind || "apps";
+      let rows: Record<string, unknown>[] = [];
+      let header: string[] = [];
+      if (kind === "per_day") {
+        const r = await db.query(`select * from v_reports_per_day`);
+        rows = r.rows;
+        header = ["day", "reports"];
+      } else if (kind === "symptoms") {
+        const r = await db.query(`select * from v_symptoms_frequency`);
+        rows = r.rows;
+        header = ["symptom", "n"];
+      } else if (kind === "wifi") {
+        const r = await db.query(`select * from v_wifi_frequency`);
+        rows = r.rows;
+        header = ["wifi_context", "n"];
+      } else if (kind === "zones") {
+        const r = await db.query(`select * from v_zone_report_totals`);
+        rows = r.rows;
+        header = ["zone_id", "label", "report_count"];
+      } else {
+        const r = await db.query(`select * from v_apps_frequency`);
+        rows = r.rows;
+        header = ["app", "n"];
+      }
+      const lines = [header.join(",")];
+      for (const row of rows) {
+        lines.push(header.map((h) => `"${String(row[h] ?? "").replaceAll('"', '""')}"`).join(","));
+      }
+      reply.header("content-type", "text/csv; charset=utf-8");
+      reply.header("content-disposition", `attachment; filename="norrsken-${kind}.csv"`);
+      return reply.send(lines.join("\n"));
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       throw err;

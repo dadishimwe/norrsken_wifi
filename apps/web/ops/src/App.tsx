@@ -4,10 +4,11 @@ import { LoginPage } from "./LoginPage";
 import { DashboardView } from "./DashboardView";
 import { UsersAdmin } from "./UsersAdmin";
 import { ZonesAdmin } from "./ZonesAdmin";
+import { GraphsView } from "./GraphsView";
 import { BrandLogo, ThemeToggle } from "./BrandLogo";
 import { useTheme } from "./theme";
 
-type Tab = "dashboard" | "zones" | "users";
+type Tab = "dashboard" | "graphs" | "zones" | "users";
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
@@ -63,29 +64,23 @@ export function App() {
       </header>
 
       <nav className="nav-tabs">
-        <button
-          type="button"
-          className={tab === "dashboard" ? "active" : ""}
-          onClick={() => setTab("dashboard")}
-        >
-          Dashboard
-        </button>
-        <button
-          type="button"
-          className={tab === "zones" ? "active" : ""}
-          onClick={() => setTab("zones")}
-        >
-          Zones
-        </button>
-        {user.role === "admin" ? (
+        {(
+          [
+            ["dashboard", "Dashboard"],
+            ["graphs", "Graphs"],
+            ["zones", "Zones"],
+            ...(user.role === "admin" ? [["users", "Users"] as const] : []),
+          ] as const
+        ).map(([id, label]) => (
           <button
+            key={id}
             type="button"
-            className={tab === "users" ? "active" : ""}
-            onClick={() => setTab("users")}
+            className={tab === id ? "active" : ""}
+            onClick={() => setTab(id)}
           >
-            Users
+            {label}
           </button>
-        ) : null}
+        ))}
       </nav>
 
       <main className="page">
@@ -93,6 +88,8 @@ export function App() {
           <UsersAdmin />
         ) : tab === "zones" ? (
           <ZonesAdmin canEdit={user.role === "admin"} />
+        ) : tab === "graphs" ? (
+          <GraphsView />
         ) : (
           <DashboardView />
         )}

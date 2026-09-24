@@ -24,6 +24,24 @@ export type ZoneQr = {
   kid: string;
 };
 
+export type ReportRow = {
+  id: string;
+  created_at: string;
+  channel: string;
+  zone_id: string;
+  zone_label: string;
+  zone_source?: string;
+  symptoms: string[];
+  apps: string[];
+  when_bucket: string;
+  wifi_context: string;
+  clarifiers?: Record<string, unknown>;
+  device_class?: string | null;
+  fill_ms?: number | null;
+  weight: number;
+  incident_id?: string | null;
+};
+
 export type DashboardPayload = {
   kpi: {
     day: string;
@@ -42,18 +60,7 @@ export type DashboardPayload = {
     reports_1h: string | number;
     has_open_incident: boolean;
   }>;
-  reports: Array<{
-    id: string;
-    created_at: string;
-    channel: string;
-    zone_id: string;
-    zone_label: string;
-    symptoms: string[];
-    apps: string[];
-    when_bucket: string;
-    wifi_context: string;
-    weight: number;
-  }>;
+  reports: ReportRow[];
   incidents: Array<{
     id: string;
     opened_at: string;
@@ -67,6 +74,24 @@ export type DashboardPayload = {
   }>;
 };
 
+export type ReportsPage = {
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
+  reports: ReportRow[];
+};
+
+export type AnalyticsPayload = {
+  kpi: DashboardPayload["kpi"];
+  reports_per_day: Array<{ day: string; reports: number }>;
+  apps: Array<{ app: string; n: number }>;
+  symptoms: Array<{ symptom: string; n: number }>;
+  wifi: Array<{ wifi_context: string; n: number }>;
+  top_zones: Array<{ zone_id: string; label: string; report_count: number }>;
+  note?: string;
+};
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: "include",
@@ -76,11 +101,26 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     },
     ...init,
   });
+  if (res.headers.get("content-type")?.includes("text/csv")) {
+    throw new Error("use downloadCsv for csv endpoints");
+  }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) {
     throw new Error(data.error || `request_failed_${res.status}`);
   }
   return data;
+}
+
+export async function downloadCsv(path: string, filename: string) {
+  const res = await fetch(path, { credentials: "include" });
+  if (!res.ok) throw new Error("export_failed");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export const opsApi = {
@@ -92,6 +132,9 @@ export const opsApi = {
     }),
   logout: () => api<{ ok: boolean }>("/api/ops/logout", { method: "POST" }),
   dashboard: () => api<DashboardPayload>("/api/ops/dashboard"),
+  reports: (page = 1, limit = 25) =>
+    api<ReportsPage>(`/api/ops/reports?page=${page}&limit=${limit}`),
+  analytics: () => api<AnalyticsPayload>("/api/ops/analytics"),
   users: () => api<{ users: OpsUser[] }>("/api/ops/users"),
   createUser: (body: {
     username: string;
@@ -134,6 +177,11 @@ export const opsApi = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  deleteZone: (id: string, force = false) =>
+    api<{ ok?: boolean; deleted?: string; disabled?: boolean; message?: string }>(
+      `/api/ops/zones/${id}${force ? "?force=1" : ""}`,
+      { method: "DELETE" },
+    ),
   zoneQr: (id: string) =>
     api<ZoneQr & { zone: { id: string; label: string } }>(`/api/ops/zones/${id}/qr`),
 };

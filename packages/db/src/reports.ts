@@ -81,6 +81,19 @@ export async function updateZone(
   return rows[0] ?? null;
 }
 
+export async function countReportsForZone(db: Pool, zoneId: string): Promise<number> {
+  const { rows } = await db.query<{ n: string }>(
+    `select count(*)::text as n from report where zone_id = $1`,
+    [zoneId],
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
+export async function deleteZone(db: Pool, id: string): Promise<boolean> {
+  const { rowCount } = await db.query(`delete from zone where id = $1`, [id]);
+  return (rowCount ?? 0) > 0;
+}
+
 export async function zoneHasOpenIncident(db: Pool, zoneId: string): Promise<boolean> {
   const { rows } = await db.query<{ ok: boolean }>(
     `

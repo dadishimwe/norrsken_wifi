@@ -82,8 +82,78 @@ body {
 .privacy {
   font-size: 0.8rem;
   color: var(--muted);
-  margin: 0 0 1.25rem;
+  margin: 0.35rem 0 0;
   line-height: 1.4;
+}
+
+.progress {
+  margin: 0 0 0.85rem;
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--dim);
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.step-enter {
+  animation: rise 0.28s ease both;
+}
+
+.step-error[hidden] {
+  display: none;
+}
+
+.override-card {
+  margin-top: 0.85rem;
+}
+
+@media (max-width: 420px) {
+  .app {
+    padding: 1rem 0.85rem 2rem;
+  }
+
+  .zone-label {
+    font-size: 1.3rem;
+  }
+
+  .chip {
+    font-size: 0.85rem;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .actions .btn,
+  .actions span {
+    width: 100%;
+  }
+}
+
+@media (min-width: 640px) {
+  .app {
+    max-width: 480px;
+    padding-top: 2rem;
+  }
 }
 
 .card {
