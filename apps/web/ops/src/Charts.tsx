@@ -1,3 +1,5 @@
+import { useState, type MouseEvent, type ReactNode } from "react";
+
 type Point = { label: string; value: number; title?: string };
 
 const MONTHS_SHORT = [
@@ -16,6 +18,8 @@ const MONTHS_SHORT = [
 ] as const;
 
 const PIE_COLORS = ["#e85d04", "#1b2430", "#c4a35a", "#8a6bb0", "#5a9a7a", "#3d6b9a"];
+
+type Tip = { text: string; x: number; y: number };
 
 function niceMax(n: number): number {
   if (n <= 0) return 1;
@@ -41,6 +45,51 @@ function arcPath(cx: number, cy: number, r: number, start: number, end: number) 
   return `M ${cx} ${cy} L ${e.x} ${e.y} A ${r} ${r} 0 ${large} 1 ${s.x} ${s.y} Z`;
 }
 
+function tipText(item: Point, extra?: string): string {
+  if (item.title) return item.title;
+  return extra ? `${item.label}: ${item.value} (${extra})` : `${item.label}: ${item.value}`;
+}
+
+function ChartTip({ tip }: { tip: Tip | null }) {
+  if (!tip) return null;
+  return (
+    <div className="chart-tip" style={{ left: tip.x, top: tip.y }} role="tooltip">
+      {tip.text}
+    </div>
+  );
+}
+
+function useChartTip() {
+  const [tip, setTip] = useState<Tip | null>(null);
+
+  function place(text: string, e: MouseEvent) {
+    const root = (e.currentTarget as HTMLElement).closest(".chart-tip-root") as HTMLElement | null;
+    if (!root) return;
+    const rect = root.getBoundingClientRect();
+    let x = e.clientX - rect.left + 14;
+    let y = e.clientY - rect.top - 12;
+    // Keep tip inside the chart area when near the right/bottom edge
+    if (x > rect.width - 160) x = e.clientX - rect.left - 150;
+    if (y < 8) y = e.clientY - rect.top + 18;
+    setTip({ text, x, y });
+  }
+
+  function hide() {
+    setTip(null);
+  }
+
+  return { tip, place, hide };
+}
+
+function ChartShell({ children, tip }: { children: ReactNode; tip: Tip | null }) {
+  return (
+    <div className="chart-tip-root">
+      {children}
+      <ChartTip tip={tip} />
+    </div>
+  );
+}
+
 /** Vertical columns — time series or few categories. */
 export function VerticalBars({
   items,
@@ -53,6 +102,7 @@ export function VerticalBars({
   formatLabel?: (label: string, index: number, total: number, compact: boolean) => string;
   compactLabels?: boolean;
 }) {
+  const { tip, place, hide } = useChartTip();
   if (!items.length) return <Empty />;
   const max = niceMax(Math.max(...items.map((i) => i.value), 1));
   const ticks = [0, 0.5, 1].map((t) => Math.round(max * t));
@@ -61,47 +111,52 @@ export function VerticalBars({
   const maxBar = n <= 5 ? 48 : n <= 14 ? 28 : 16;
 
   return (
-    <div className="chart-v" style={{ height }}>
-      <div className="chart-v-y" aria-hidden="true">
-        {[...ticks].reverse().map((t) => (
-          <span key={t}>{t}</span>
-        ))}
-      </div>
-      <div className="chart-v-plot">
-        <div className="chart-v-grid" aria-hidden="true">
-          {ticks.map((t) => (
-            <div key={t} className="chart-v-gridline" style={{ bottom: `${(t / max) * 100}%` }} />
+    <ChartShell tip={tip}>
+      <div className="chart-v" style={{ height }}>
+        <div className="chart-v-y" aria-hidden="true">
+          {[...ticks].reverse().map((t) => (
+            <span key={t}>{t}</span>
           ))}
         </div>
-        <div
-          className="chart-v-bars"
-          style={{ gap: `${gap}px`, ["--max-bar" as string]: `${maxBar}px` }}
-        >
-          {items.map((item, i) => {
-            const h = Math.max(item.value > 0 ? 2 : 0, (item.value / max) * 100);
-            const label = formatLabel
-              ? formatLabel(item.label, i, n, compactLabels)
-              : item.label;
-            return (
-              <div
-                className="chart-v-col"
-                key={`${item.label}-${i}`}
-                title={item.title ?? `${item.label}: ${item.value}`}
-              >
-                <div className="chart-v-bar-wrap">
-                  <div className="chart-v-bar" style={{ height: `${h}%` }}>
-                    {item.value > 0 && n <= 16 ? (
-                      <span className="chart-v-val">{item.value}</span>
-                    ) : null}
+        <div className="chart-v-plot">
+          <div className="chart-v-grid" aria-hidden="true">
+            {ticks.map((t) => (
+              <div key={t} className="chart-v-gridline" style={{ bottom: `${(t / max) * 100}%` }} />
+            ))}
+          </div>
+          <div
+            className="chart-v-bars"
+            style={{ gap: `${gap}px`, ["--max-bar" as string]: `${maxBar}px` }}
+          >
+            {items.map((item, i) => {
+              const h = Math.max(item.value > 0 ? 2 : 0, (item.value / max) * 100);
+              const label = formatLabel
+                ? formatLabel(item.label, i, n, compactLabels)
+                : item.label;
+              const text = tipText(item);
+              return (
+                <div
+                  className="chart-v-col"
+                  key={`${item.label}-${i}`}
+                  onMouseEnter={(e) => place(text, e)}
+                  onMouseMove={(e) => place(text, e)}
+                  onMouseLeave={hide}
+                >
+                  <div className="chart-v-bar-wrap">
+                    <div className="chart-v-bar" style={{ height: `${h}%` }}>
+                      {item.value > 0 && n <= 16 ? (
+                        <span className="chart-v-val">{item.value}</span>
+                      ) : null}
+                    </div>
                   </div>
+                  <div className="chart-v-label">{label}</div>
                 </div>
-                <div className="chart-v-label">{label}</div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
-    </div>
+    </ChartShell>
   );
 }
 
@@ -113,34 +168,41 @@ export function HorizontalBars({
   items: Point[];
   maxItems?: number;
 }) {
+  const { tip, place, hide } = useChartTip();
   const slice = items.slice(0, maxItems);
   if (!slice.length) return <Empty />;
   const max = niceMax(Math.max(...slice.map((i) => i.value), 1));
 
   return (
-    <div className="chart-h">
-      {slice.map((item) => {
-        const pct = Math.max(item.value > 0 ? 2 : 0, (item.value / max) * 100);
-        return (
-          <div
-            className="chart-h-row"
-            key={item.label}
-            title={item.title ?? `${item.label}: ${item.value}`}
-          >
-            <div className="chart-h-label">{item.label}</div>
-            <div className="chart-h-track">
-              <div className="chart-h-bar" style={{ width: `${pct}%` }} />
+    <ChartShell tip={tip}>
+      <div className="chart-h">
+        {slice.map((item) => {
+          const pct = Math.max(item.value > 0 ? 2 : 0, (item.value / max) * 100);
+          const text = tipText(item);
+          return (
+            <div
+              className="chart-h-row"
+              key={item.label}
+              onMouseEnter={(e) => place(text, e)}
+              onMouseMove={(e) => place(text, e)}
+              onMouseLeave={hide}
+            >
+              <div className="chart-h-label">{item.label}</div>
+              <div className="chart-h-track">
+                <div className="chart-h-bar" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="chart-h-n">{item.value}</div>
             </div>
-            <div className="chart-h-n">{item.value}</div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </ChartShell>
   );
 }
 
 /** Pie chart for categorical composition (e.g. Wi‑Fi context). */
 export function PieChart({ items }: { items: Point[] }) {
+  const { tip, place, hide } = useChartTip();
   if (!items.length) return <Empty />;
   const total = items.reduce((s, i) => s + i.value, 0) || 1;
   const cx = 80;
@@ -171,32 +233,47 @@ export function PieChart({ items }: { items: Point[] }) {
         });
 
   return (
-    <div className="chart-pie">
-      <svg className="chart-pie-svg" viewBox="0 0 160 160" role="img" aria-label="Wi-Fi context share">
-        {slices.map((s) => (
-          <path
-            key={s.label}
-            d={s.path}
-            fill={s.color}
-            stroke="var(--bg-panel, #fff)"
-            strokeWidth="1.5"
-          >
-            <title>{`${s.label}: ${s.value} (${s.pct}%)`}</title>
-          </path>
-        ))}
-      </svg>
-      <ul className="chart-pie-legend">
-        {slices.map((s) => (
-          <li key={s.label}>
-            <span className="chart-pie-dot" style={{ background: s.color }} />
-            <span className="chart-pie-name">{s.label}</span>
-            <span className="chart-pie-meta">
-              {s.value} · {s.pct}%
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <ChartShell tip={tip}>
+      <div className="chart-pie">
+        <svg className="chart-pie-svg" viewBox="0 0 160 160" role="img" aria-label="Wi-Fi context share">
+          {slices.map((s) => {
+            const text = `${s.label}: ${s.value} (${s.pct}%)`;
+            return (
+              <path
+                key={s.label}
+                d={s.path}
+                fill={s.color}
+                stroke="var(--bg-panel, #fff)"
+                strokeWidth="1.5"
+                className="chart-pie-slice"
+                onMouseEnter={(e) => place(text, e)}
+                onMouseMove={(e) => place(text, e)}
+                onMouseLeave={hide}
+              />
+            );
+          })}
+        </svg>
+        <ul className="chart-pie-legend">
+          {slices.map((s) => {
+            const text = `${s.label}: ${s.value} (${s.pct}%)`;
+            return (
+              <li
+                key={s.label}
+                onMouseEnter={(e) => place(text, e)}
+                onMouseMove={(e) => place(text, e)}
+                onMouseLeave={hide}
+              >
+                <span className="chart-pie-dot" style={{ background: s.color }} />
+                <span className="chart-pie-name">{s.label}</span>
+                <span className="chart-pie-meta">
+                  {s.value} · {s.pct}%
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </ChartShell>
   );
 }
 

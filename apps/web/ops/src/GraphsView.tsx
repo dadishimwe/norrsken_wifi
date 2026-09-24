@@ -76,27 +76,54 @@ export function GraphsView() {
   if (!data) return <p className="error">No analytics data.</p>;
 
   const kpi = data.kpi;
-  const dayPoints = data.reports_per_day.map((d) => ({
-    label: String(d.day).slice(0, 10),
-    value: Number(d.reports) || 0,
-    title: String(d.day).slice(0, 10),
-  }));
-  const wifiPoints = data.wifi.map((w) => ({
-    label: w.wifi_context,
-    value: Number(w.n) || 0,
-  }));
-  const appPoints = data.apps.map((a) => ({
-    label: a.app,
-    value: Number(a.n) || 0,
-  }));
-  const symptomPoints = data.symptoms.map((s) => ({
-    label: s.symptom,
-    value: Number(s.n) || 0,
-  }));
-  const zonePoints = data.top_zones.map((z) => ({
-    label: z.label,
-    value: Number(z.report_count) || 0,
-  }));
+  const dayPoints = data.reports_per_day.map((d) => {
+    const iso = String(d.day).slice(0, 10);
+    const pretty = (() => {
+      const dt = new Date(`${iso}T12:00:00`);
+      if (Number.isNaN(dt.getTime())) return iso;
+      const months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sept",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+      return `${months[dt.getMonth()]} ${dt.getDate()}`;
+    })();
+    const n = Number(d.reports) || 0;
+    return {
+      label: iso,
+      value: n,
+      title: `${pretty}: ${n} report${n === 1 ? "" : "s"}`,
+    };
+  });
+  const wifiPoints = data.wifi.map((w) => {
+    const n = Number(w.n) || 0;
+    return { label: w.wifi_context, value: n, title: `${w.wifi_context}: ${n}` };
+  });
+  const appPoints = data.apps.map((a) => {
+    const n = Number(a.n) || 0;
+    return { label: a.app, value: n, title: `${a.app}: ${n} mention${n === 1 ? "" : "s"}` };
+  });
+  const symptomPoints = data.symptoms.map((s) => {
+    const n = Number(s.n) || 0;
+    return { label: s.symptom, value: n, title: `${s.symptom}: ${n}` };
+  });
+  const zonePoints = data.top_zones.map((z) => {
+    const n = Number(z.report_count) || 0;
+    return {
+      label: z.label,
+      value: n,
+      title: `${z.label}: ${n} report${n === 1 ? "" : "s"}`,
+    };
+  });
 
   const zoneOptions = [
     { value: "", label: "All zones" },

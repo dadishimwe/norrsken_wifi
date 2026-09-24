@@ -117,3 +117,34 @@ export function pickClarifiers(input: PickClarifierInput): ClarifierDef[] {
 
   return picked;
 }
+
+const FIELD_LABELS: Record<string, string> = {
+  same_as_incident: "Same as current issue",
+  choppy_type: "What was choppy",
+  wifi_dropped: "Wi‑Fi drop",
+  connect_detail: "What they saw",
+  slow_scope: "Slow scope",
+  wifi_context: "Wi‑Fi",
+  other_app: "Other app",
+};
+
+/** Human-readable clarifier summary for ops tables / CSV. */
+export function formatClarifiersDisplay(
+  clarifiers: Record<string, unknown> | null | undefined,
+): string {
+  if (!clarifiers || typeof clarifiers !== "object") return "";
+  const parts: string[] = [];
+  for (const [key, raw] of Object.entries(clarifiers)) {
+    if (raw == null || raw === "") continue;
+    const value = String(raw);
+    if (key === "other_app") {
+      parts.push(`Other app: ${value}`);
+      continue;
+    }
+    const def = CLARIFIERS.find((c) => c.id === key);
+    const opt = def?.options.find((o) => o.id === value);
+    const field = FIELD_LABELS[key] ?? def?.question ?? key.replaceAll("_", " ");
+    parts.push(`${field}: ${opt?.label ?? value.replaceAll("_", " ")}`);
+  }
+  return parts.join(" · ");
+}

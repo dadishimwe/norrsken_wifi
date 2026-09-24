@@ -19,9 +19,19 @@ import {
   type OpsUser,
 } from "@norrsken/db";
 import { z } from "zod";
+import {
+  APP_LABELS,
+  SYMPTOM_LABELS,
+  formatClarifiersDisplay,
+} from "@norrsken/shared";
 import type { Env } from "./env.js";
 import { HttpError } from "./reports-service.js";
 import { buildZoneQr } from "./qr-service.js";
+
+function labelList(ids: unknown, labels: Record<string, string>): string {
+  if (!Array.isArray(ids)) return "";
+  return ids.map((id) => labels[String(id)] ?? String(id).replaceAll("_", " ")).join("|");
+}
 
 const COOKIE = "norrsken_ops_session";
 
@@ -427,14 +437,15 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
           header
             .map((h) => {
               const v = r[h];
-              const s =
-                v == null
-                  ? ""
-                  : Array.isArray(v)
-                    ? v.join("|")
-                    : typeof v === "object"
-                      ? JSON.stringify(v)
-                      : String(v);
+              let s = "";
+              if (v == null) s = "";
+              else if (h === "symptoms") s = labelList(v, SYMPTOM_LABELS as Record<string, string>);
+              else if (h === "apps") s = labelList(v, APP_LABELS as Record<string, string>);
+              else if (h === "clarifiers" && typeof v === "object")
+                s = formatClarifiersDisplay(v as Record<string, unknown>);
+              else if (Array.isArray(v)) s = v.join("|");
+              else if (typeof v === "object") s = JSON.stringify(v);
+              else s = String(v);
               return `"${s.replaceAll('"', '""')}"`;
             })
             .join(","),

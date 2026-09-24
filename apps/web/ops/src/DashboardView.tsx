@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { downloadCsv, opsApi, type DashboardPayload, type ReportsPage } from "./api";
+import { formatClarifiersDisplay, labelApp, labelSymptom } from "./labels";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -19,10 +20,7 @@ function timeAgo(iso: string): string {
 }
 
 function clarifierText(c: Record<string, unknown> | undefined): string {
-  if (!c || !Object.keys(c).length) return "—";
-  return Object.entries(c)
-    .map(([k, v]) => `${k}: ${String(v)}`)
-    .join("; ");
+  return formatClarifiersDisplay(c) || "—";
 }
 
 export function DashboardView() {
@@ -185,7 +183,7 @@ export function DashboardView() {
                       <td>
                         {r.symptoms.map((s) => (
                           <span className="pill" key={s}>
-                            {s}
+                            {labelSymptom(s)}
                           </span>
                         ))}
                       </td>
@@ -193,7 +191,7 @@ export function DashboardView() {
                         {r.apps.length
                           ? r.apps.map((a) => (
                               <span className="pill" key={a}>
-                                {a}
+                                {labelApp(a)}
                               </span>
                             ))
                           : "—"}

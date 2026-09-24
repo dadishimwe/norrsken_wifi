@@ -1050,6 +1050,61 @@ html[data-theme="dark"] .login-card {
   color: var(--text-muted);
 }
 
+.chart-tip-root {
+  position: relative;
+}
+
+.chart-tip {
+  position: absolute;
+  z-index: 30;
+  pointer-events: none;
+  transform: translateY(-100%);
+  max-width: 220px;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--bg-elevated);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  animation: tip-in 0.12s ease both;
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-100% + 4px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-100%);
+  }
+}
+
+.chart-v-col,
+.chart-h-row,
+.chart-pie-legend li,
+.chart-pie-slice {
+  cursor: default;
+}
+
+.chart-v-col:hover .chart-v-bar,
+.chart-h-row:hover .chart-h-bar {
+  filter: brightness(1.08);
+}
+
+.chart-pie-slice:hover {
+  filter: brightness(1.1);
+  outline: none;
+}
+
+.chart-pie-legend li:hover {
+  background: var(--accent-dim);
+  border-radius: 6px;
+}
+
 @keyframes rise {
   from {
     opacity: 0;
