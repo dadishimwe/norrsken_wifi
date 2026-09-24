@@ -17,6 +17,8 @@ export const clarifiersSchema = z
       .enum(["cant_join", "joined_no_internet", "login_again", "not_sure"])
       .optional(),
     slow_scope: z.enum(["everything", "one_app", "uploads_downloads"]).optional(),
+    /** Free-text when apps includes "other" */
+    other_app: z.string().trim().max(80).optional(),
   })
   .strict();
 

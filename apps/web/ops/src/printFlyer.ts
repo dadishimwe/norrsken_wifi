@@ -203,7 +203,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     <ol class="steps">
       <li><span class="num">1</span><div><p class="step-title">What happened</p><p class="step-hint">Couldn't connect, slow, call choppy, dropped</p></div></li>
       <li><span class="num">2</span><div><p class="step-title">When</p><p class="step-hint">Just now, or earlier</p></div></li>
-      <li><span class="num">3</span><div><p class="step-title">Which app</p><p class="step-hint">Zoom, Teams, Meet, WhatsApp, Slack…</p></div></li>
+      <li><span class="num">3</span><div><p class="step-title">Which apps</p><p class="step-hint">Zoom, Teams, GitHub, Gmail, Microsoft 365…</p></div></li>
       <li><span class="num">4</span><div><p class="step-title">Wi‑Fi context</p><p class="step-hint">Which network you were on</p></div></li>
     </ol>
   </div>

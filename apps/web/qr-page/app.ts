@@ -1,5 +1,4 @@
 type Chip = { id: string; label: string };
-type Clarifier = { id: string; question: string; options: Chip[] };
 type Zone = { id: string; label: string; floor: string | null };
 
 type Bootstrap = {
@@ -19,7 +18,7 @@ interface QrWindow {
   __BOOTSTRAP__: Bootstrap | BootstrapError | null;
 }
 
-type StepId = "symptoms" | "clarifier" | "apps" | "when" | "wifi";
+type StepId = "symptoms" | "when" | "apps" | "wifi";
 
 const boot = (window as unknown as QrWindow).__BOOTSTRAP__;
 const root = document.getElementById("app")!;
@@ -66,19 +65,17 @@ async function run(b: Bootstrap) {
   let zoneLabel = b.zone.label;
   const symptoms = new Set<string>();
   const apps = new Set<string>();
+  let otherApp = "";
   let whenBucket = "now";
   let wifiContext = "unknown";
-  const clarifiers: Record<string, string> = {};
   let reportId: string | null = null;
   let editToken: string | null = null;
-  let clarifierShown: Clarifier | null = null;
   let errorMsg = "";
   let phase: "form" | "done" = "form";
   let recentCount = 0;
   let busy = false;
   let stepIndex = 0;
-  /** Always 5 quick steps; clarifier may be a skip if API returns none. */
-  const steps: StepId[] = ["symptoms", "clarifier", "apps", "when", "wifi"];
+  const steps: StepId[] = ["symptoms", "when", "apps", "wifi"];
   let renderedStep: StepId | null = null;
 
   async function waitMinFill(): Promise<number> {
@@ -126,6 +123,11 @@ async function run(b: Bootstrap) {
     }
     if (fill) fill.style.width = `${pct}%`;
     if (wrap) wrap.setAttribute("aria-label", `Step ${current} of ${total}`);
+  }
+
+  function syncOtherAppInput() {
+    const input = root.querySelector<HTMLInputElement>("#other-app");
+    if (input) otherApp = input.value.trim().slice(0, 80);
   }
 
   function render() {
@@ -214,38 +216,6 @@ async function run(b: Bootstrap) {
             .join("")}
         </div>`;
     }
-    if (step === "clarifier") {
-      if (!clarifierShown) {
-        return `
-          <h2>Any more detail?</h2>
-          <p class="hint">Nothing extra needed — continue.</p>`;
-      }
-      return `
-        <h2>${escapeHtml(clarifierShown.question)}</h2>
-        <p class="hint">Optional — helps Network Ops</p>
-        <div class="chips" data-group="clarifier">
-          ${clarifierShown.options
-            .map(
-              (o) =>
-                `<button type="button" class="chip${clarifiers[clarifierShown!.id] === o.id ? " on" : ""}" data-clarifier="${escapeHtml(clarifierShown!.id)}" data-value="${escapeHtml(o.id)}">${escapeHtml(o.label)}</button>`,
-            )
-            .join("")}
-          <button type="button" class="chip ghost" data-clarifier-skip>Skip</button>
-        </div>`;
-    }
-    if (step === "apps") {
-      return `
-        <h2>Which app?</h2>
-        <p class="hint">Optional</p>
-        <div class="chips" data-group="apps">
-          ${b.apps
-            .map(
-              (a) =>
-                `<button type="button" class="chip${apps.has(a.id) ? " on" : ""}" data-app="${escapeHtml(a.id)}">${escapeHtml(a.label)}</button>`,
-            )
-            .join("")}
-        </div>`;
-    }
     if (step === "when") {
       return `
         <h2>When?</h2>
@@ -256,6 +226,27 @@ async function run(b: Bootstrap) {
                 `<button type="button" class="chip${whenBucket === w.id ? " on" : ""}" data-when="${escapeHtml(w.id)}">${escapeHtml(w.label)}</button>`,
             )
             .join("")}
+        </div>`;
+    }
+    if (step === "apps") {
+      const showOther = apps.has("other");
+      return `
+        <h2>Which apps?</h2>
+        <p class="hint">Optional — tap any that apply</p>
+        <div class="chips" data-group="apps">
+          ${b.apps
+            .map(
+              (a) =>
+                `<button type="button" class="chip${apps.has(a.id) ? " on" : ""}" data-app="${escapeHtml(a.id)}">${escapeHtml(a.label)}</button>`,
+            )
+            .join("")}
+        </div>
+        <div class="other-app" ${showOther ? "" : "hidden"}>
+          <label for="other-app">Which other app? <span class="hint-inline">(optional)</span></label>
+          <input id="other-app" class="text-input" type="text" maxlength="80"
+            placeholder="e.g. Notion, Dropbox…"
+            value="${escapeHtml(otherApp)}"
+            autocomplete="off" />
         </div>`;
     }
     return `
@@ -290,11 +281,26 @@ async function run(b: Bootstrap) {
         if (apps.has(id)) {
           apps.delete(id);
           btn.classList.remove("on");
+          if (id === "other") {
+            otherApp = "";
+            const box = root.querySelector<HTMLElement>(".other-app");
+            if (box) box.hidden = true;
+          }
         } else {
           apps.add(id);
           btn.classList.add("on");
+          if (id === "other") {
+            const box = root.querySelector<HTMLElement>(".other-app");
+            if (box) {
+              box.hidden = false;
+              root.querySelector<HTMLInputElement>("#other-app")?.focus();
+            }
+          }
         }
       });
+    });
+    root.querySelector<HTMLInputElement>("#other-app")?.addEventListener("input", (e) => {
+      otherApp = (e.target as HTMLInputElement).value.trim().slice(0, 80);
     });
     root.querySelectorAll<HTMLButtonElement>("[data-when]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -310,22 +316,9 @@ async function run(b: Bootstrap) {
         btn.classList.add("on");
       });
     });
-    root.querySelectorAll<HTMLButtonElement>("[data-clarifier]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const key = btn.dataset.clarifier!;
-        const value = btn.dataset.value!;
-        clarifiers[key] = value;
-        if (key === "wifi_context") wifiContext = value;
-        root.querySelectorAll<HTMLButtonElement>("[data-clarifier]").forEach((b) => b.classList.remove("on"));
-        btn.classList.add("on");
-      });
-    });
-    root.querySelector("[data-clarifier-skip]")?.addEventListener("click", () => {
-      if (clarifierShown) delete clarifiers[clarifierShown.id];
-      void goNext(true);
-    });
-    root.querySelector("[data-action='next']")?.addEventListener("click", () => void goNext(false));
+    root.querySelector("[data-action='next']")?.addEventListener("click", () => void goNext());
     root.querySelector("[data-action='back']")?.addEventListener("click", () => {
+      syncOtherAppInput();
       if (stepIndex > 0) {
         stepIndex -= 1;
         setError("");
@@ -385,7 +378,6 @@ async function run(b: Bootstrap) {
       const data = (await res.json()) as {
         report_id?: string;
         edit_token?: string;
-        clarifiers?: Clarifier[];
         recent_count?: number;
         error?: string;
       };
@@ -393,7 +385,6 @@ async function run(b: Bootstrap) {
       reportId = data.report_id!;
       editToken = data.edit_token!;
       recentCount = data.recent_count ?? 0;
-      clarifierShown = data.clarifiers?.[0] ?? null;
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save. Try again.");
@@ -418,10 +409,16 @@ async function run(b: Bootstrap) {
     if (typeof data.recent_count === "number") recentCount = data.recent_count;
   }
 
-  async function goNext(fromSkip: boolean) {
+  function clarifierPayload(): Record<string, string> {
+    if (apps.has("other") && otherApp) return { other_app: otherApp };
+    return {};
+  }
+
+  async function goNext() {
     if (busy) return;
     const step = steps[stepIndex];
     setError("");
+    syncOtherAppInput();
 
     if (step === "symptoms") {
       const ok = await ensureReportCreated();
@@ -433,19 +430,14 @@ async function run(b: Bootstrap) {
 
     setBusyUi(true);
     try {
-      if (step === "clarifier" && !fromSkip && clarifierShown) {
-        const key = clarifierShown.id;
-        const value = clarifiers[key];
-        if (value) {
-          await patch({
-            clarifiers: key === "wifi_context" ? {} : { [key]: value },
-            ...(key === "wifi_context" ? { wifi_context: value } : {}),
-          });
-        }
-      } else if (step === "apps") {
-        await patch({ apps: [...apps] });
-      } else if (step === "when") {
+      if (step === "when") {
         await patch({ when_bucket: whenBucket });
+      } else if (step === "apps") {
+        const c = clarifierPayload();
+        await patch({
+          apps: [...apps],
+          ...(Object.keys(c).length ? { clarifiers: c } : { clarifiers: {} }),
+        });
       } else if (step === "wifi") {
         await patch({ wifi_context: wifiContext });
       }
@@ -465,16 +457,14 @@ async function run(b: Bootstrap) {
   }
 
   async function finish() {
-    const clarifierPayload = Object.fromEntries(
-      Object.entries(clarifiers).filter(([k]) => k !== "wifi_context"),
-    );
+    const c = clarifierPayload();
     if (reportId) {
       await patch({
         symptoms: [...symptoms],
         apps: [...apps],
         when_bucket: whenBucket,
         wifi_context: wifiContext,
-        ...(Object.keys(clarifierPayload).length ? { clarifiers: clarifierPayload } : {}),
+        clarifiers: c,
       });
     }
     const card = root.querySelector(".step-card");
