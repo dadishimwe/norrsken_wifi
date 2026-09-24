@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+.env
+*.log
+.DS_Store
+.turbo
+*.tsbuildinfo
+apps/api/keys
+scripts/keys
+
+# Local build plans (not published)
+cursor.md
+CLAUDE.md
+docs/PLAN.md

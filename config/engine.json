@@ -1,0 +1,18 @@
+{
+  "zoneIncident": {
+    "minDistinctActors": 3,
+    "windowMinutes": 10
+  },
+  "campusWide": {
+    "minZones": 3,
+    "minActorsPerZone": 2,
+    "windowMinutes": 15
+  },
+  "appSpecific": {
+    "minAppShare": 0.7,
+    "minZones": 3
+  },
+  "tickSeconds": 45,
+  "suggestResolveSilenceMinutes": 20,
+  "kAnonymityMin": 3
+}

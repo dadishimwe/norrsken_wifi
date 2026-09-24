@@ -1,0 +1,8 @@
+:80 {
+  # Strip client IP from access logs (privacy)
+  log {
+    output discard
+  }
+
+  reverse_proxy api:3000
+}

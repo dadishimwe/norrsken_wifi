@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: norrsken
+          POSTGRES_PASSWORD: norrsken
+          POSTGRES_DB: norrsken
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U norrsken -d norrsken"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - name: Migrate + test
+        env:
+          DATABASE_URL: postgres://norrsken:norrsken@localhost:5432/norrsken
+          EDIT_TOKEN_SECRET: test-edit-token-secret-at-least-32-chars
+          MIN_FILL_MS: "1500"
+        run: |
+          pnpm db:migrate
+          pnpm db:seed
+          pnpm test

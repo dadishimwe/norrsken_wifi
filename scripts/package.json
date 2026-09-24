@@ -1,0 +1,12 @@
+{
+  "name": "@norrsken/scripts",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'scripts: M2 keygen/qr-gen'",
+    "typecheck": "echo 'scripts: stub'",
+    "lint": "echo 'scripts: stub'",
+    "test": "echo 'scripts: stub'"
+  }
+}

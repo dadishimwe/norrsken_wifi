@@ -1,0 +1,8 @@
+{
+  "ssids": [
+    { "id": "member_wifi", "label": "Member Wi-Fi" },
+    { "id": "guest_wifi", "label": "Guest Wi-Fi" },
+    { "id": "wired", "label": "Wired" },
+    { "id": "unknown", "label": "Not sure" }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@norrsken/web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'web: M2/M5 stub'",
+    "typecheck": "echo 'web: stub'",
+    "lint": "echo 'web: stub'",
+    "test": "echo 'web: stub'"
+  }
+}
