@@ -8,6 +8,22 @@ export type OpsUser = {
   last_login_at?: string | null;
 };
 
+export type OpsZone = {
+  id: string;
+  label: string;
+  floor: string | null;
+  kind: string;
+  active: boolean;
+  sort: number;
+};
+
+export type ZoneQr = {
+  token: string;
+  url: string;
+  png_data_url: string;
+  kid: string;
+};
+
 export type DashboardPayload = {
   kpi: {
     day: string;
@@ -92,4 +108,32 @@ export const opsApi = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  zones: () => api<{ zones: OpsZone[] }>("/api/ops/zones"),
+  createZone: (body: {
+    id: string;
+    label: string;
+    floor?: string | null;
+    kind: "area" | "booth" | "event" | "common";
+    sort?: number;
+  }) =>
+    api<{ zone: OpsZone }>("/api/ops/zones", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  patchZone: (
+    id: string,
+    body: {
+      label?: string;
+      floor?: string | null;
+      kind?: "area" | "booth" | "event" | "common";
+      active?: boolean;
+      sort?: number;
+    },
+  ) =>
+    api<{ zone: OpsZone }>(`/api/ops/zones/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  zoneQr: (id: string) =>
+    api<ZoneQr & { zone: { id: string; label: string } }>(`/api/ops/zones/${id}/qr`),
 };

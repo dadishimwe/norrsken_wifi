@@ -2,6 +2,9 @@ export { createPool, type Db, type ZoneRow, type ReportRow } from "./client.js";
 export {
   getZone,
   listActiveZones,
+  listAllZones,
+  createZone,
+  updateZone,
   zoneHasOpenIncident,
   countRecentReportsInZone,
   insertReport,

@@ -24,6 +24,10 @@ const envSchema = z.object({
   OPS_STATIC_DIR: z.string().optional(),
   QR_STATIC_DIR: z.string().optional(),
   QR_PUBLIC_KEYS_PATH: z.string().optional(),
+  QR_PRIVATE_KEY_PATH: z.string().optional(),
+  QR_KID: z.string().default("k1"),
+  /** Public origin for QR links, e.g. http://192.168.1.10:8080 or https://wifi.example.com */
+  PUBLIC_BASE_URL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

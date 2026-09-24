@@ -3,18 +3,23 @@ import type { Pool } from "pg";
 import {
   createOpsSession,
   createOpsUser,
+  createZone,
   getOpsUserByUsername,
+  getZone,
+  listAllZones,
   listOpsUsers,
   resolveOpsSession,
   revokeOpsSession,
   setOpsUserActive,
   setOpsUserPassword,
+  updateZone,
   verifyPassword,
   type OpsUser,
 } from "@norrsken/db";
 import { z } from "zod";
 import type { Env } from "./env.js";
 import { HttpError } from "./reports-service.js";
+import { buildZoneQr } from "./qr-service.js";
 
 const COOKIE = "norrsken_ops_session";
 
@@ -216,6 +221,106 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         reports: reports.rows,
         incidents: incidents.rows,
       };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  const createZoneSchema = z.object({
+    id: z
+      .string()
+      .min(2)
+      .max(64)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "id: lowercase letters, numbers, hyphens"),
+    label: z.string().min(1).max(120),
+    floor: z.string().max(32).nullable().optional(),
+    kind: z.enum(["area", "booth", "event", "common"]).default("area"),
+    sort: z.number().int().optional(),
+  });
+
+  app.get("/api/ops/zones", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const zones = await listAllZones(db);
+      return { zones };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.post("/api/ops/zones", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireAdmin(me);
+      const parsed = createZoneSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: parsed.error.issues.map((i) => i.message).join("; "),
+        });
+      }
+      const zone = await createZone(db, {
+        id: parsed.data.id,
+        label: parsed.data.label,
+        floor: parsed.data.floor ?? null,
+        kind: parsed.data.kind,
+        sort: parsed.data.sort,
+      });
+      return reply.code(201).send({ zone });
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
+        return reply.code(409).send({ error: "zone_id_taken" });
+      }
+      throw err;
+    }
+  });
+
+  app.patch("/api/ops/zones/:id", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireAdmin(me);
+      const { id } = req.params as { id: string };
+      const body = z
+        .object({
+          label: z.string().min(1).max(120).optional(),
+          floor: z.string().max(32).nullable().optional(),
+          kind: z.enum(["area", "booth", "event", "common"]).optional(),
+          active: z.boolean().optional(),
+          sort: z.number().int().optional(),
+        })
+        .safeParse(req.body);
+      if (!body.success) return reply.code(400).send({ error: "invalid_body" });
+      const zone = await updateZone(db, id, body.data);
+      if (!zone) return reply.code(404).send({ error: "not_found" });
+      return { zone };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get("/api/ops/zones/:id/qr", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const { id } = req.params as { id: string };
+      const zone = await getZone(db, id);
+      if (!zone) return reply.code(404).send({ error: "not_found" });
+      if (!zone.active) return reply.code(400).send({ error: "zone_inactive" });
+
+      try {
+        const host = typeof req.headers.host === "string" ? req.headers.host : undefined;
+        const qr = await buildZoneQr(env, zone.id, { host });
+        return {
+          zone: { id: zone.id, label: zone.label },
+          ...qr,
+        };
+      } catch (e) {
+        return reply.code(503).send({
+          error: e instanceof Error ? e.message : "qr_unavailable",
+        });
+      }
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       throw err;

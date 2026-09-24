@@ -16,6 +16,71 @@ export async function listActiveZones(db: Pool): Promise<ZoneRow[]> {
   return rows;
 }
 
+export async function listAllZones(db: Pool): Promise<ZoneRow[]> {
+  const { rows } = await db.query<ZoneRow>(
+    "select id, label, floor, kind, active, sort from zone order by sort, id",
+  );
+  return rows;
+}
+
+export async function createZone(
+  db: Pool,
+  input: {
+    id: string;
+    label: string;
+    floor: string | null;
+    kind: string;
+    sort?: number;
+  },
+): Promise<ZoneRow> {
+  const { rows } = await db.query<ZoneRow>(
+    `
+    insert into zone (id, label, floor, kind, active, sort)
+    values ($1, $2, $3, $4, true, $5)
+    returning id, label, floor, kind, active, sort
+    `,
+    [input.id, input.label, input.floor, input.kind, input.sort ?? 0],
+  );
+  const row = rows[0];
+  if (!row) throw new Error("createZone failed");
+  return row;
+}
+
+export async function updateZone(
+  db: Pool,
+  id: string,
+  fields: {
+    label?: string;
+    floor?: string | null;
+    kind?: string;
+    active?: boolean;
+    sort?: number;
+  },
+): Promise<ZoneRow | null> {
+  const { rows } = await db.query<ZoneRow>(
+    `
+    update zone set
+      label = coalesce($2, label),
+      floor = case when $3::boolean then $4 else floor end,
+      kind = coalesce($5, kind),
+      active = coalesce($6, active),
+      sort = coalesce($7, sort)
+    where id = $1
+    returning id, label, floor, kind, active, sort
+    `,
+    [
+      id,
+      fields.label ?? null,
+      fields.floor !== undefined,
+      fields.floor ?? null,
+      fields.kind ?? null,
+      fields.active ?? null,
+      fields.sort ?? null,
+    ],
+  );
+  return rows[0] ?? null;
+}
+
 export async function zoneHasOpenIncident(db: Pool, zoneId: string): Promise<boolean> {
   const { rows } = await db.query<{ ok: boolean }>(
     `

@@ -3,10 +3,11 @@ import { opsApi, type OpsUser } from "./api";
 import { LoginPage } from "./LoginPage";
 import { DashboardView } from "./DashboardView";
 import { UsersAdmin } from "./UsersAdmin";
+import { ZonesAdmin } from "./ZonesAdmin";
 import { BrandLogo, ThemeToggle } from "./BrandLogo";
 import { useTheme } from "./theme";
 
-type Tab = "dashboard" | "users";
+type Tab = "dashboard" | "zones" | "users";
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
@@ -69,6 +70,13 @@ export function App() {
         >
           Dashboard
         </button>
+        <button
+          type="button"
+          className={tab === "zones" ? "active" : ""}
+          onClick={() => setTab("zones")}
+        >
+          Zones
+        </button>
         {user.role === "admin" ? (
           <button
             type="button"
@@ -80,7 +88,15 @@ export function App() {
         ) : null}
       </nav>
 
-      <main className="page">{tab === "users" ? <UsersAdmin /> : <DashboardView />}</main>
+      <main className="page">
+        {tab === "users" ? (
+          <UsersAdmin />
+        ) : tab === "zones" ? (
+          <ZonesAdmin canEdit={user.role === "admin"} />
+        ) : (
+          <DashboardView />
+        )}
+      </main>
     </div>
   );
 }

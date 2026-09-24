@@ -462,6 +462,10 @@ html[data-theme="dark"] .login-card {
   background: var(--warn);
 }
 
-.status-dot.bad {
-  background: var(--danger);
+.panel code {
+  font-family: var(--mono);
+  font-size: 0.8em;
+  background: var(--bg);
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px;
 }
