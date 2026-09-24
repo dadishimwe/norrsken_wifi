@@ -83,6 +83,8 @@ export type ReportsPage = {
 };
 
 export type AnalyticsPayload = {
+  filters?: { days: number; channel: string; zone_id: string | null };
+  zones_options?: Array<{ id: string; label: string }>;
   kpi: DashboardPayload["kpi"];
   reports_per_day: Array<{ day: string; reports: number }>;
   apps: Array<{ app: string; n: number }>;
@@ -134,7 +136,14 @@ export const opsApi = {
   dashboard: () => api<DashboardPayload>("/api/ops/dashboard"),
   reports: (page = 1, limit = 25) =>
     api<ReportsPage>(`/api/ops/reports?page=${page}&limit=${limit}`),
-  analytics: () => api<AnalyticsPayload>("/api/ops/analytics"),
+  analytics: (opts?: { days?: number; channel?: string; zone_id?: string | null }) => {
+    const sp = new URLSearchParams();
+    if (opts?.days) sp.set("days", String(opts.days));
+    if (opts?.channel && opts.channel !== "all") sp.set("channel", opts.channel);
+    if (opts?.zone_id) sp.set("zone_id", opts.zone_id);
+    const q = sp.toString();
+    return api<AnalyticsPayload>(`/api/ops/analytics${q ? `?${q}` : ""}`);
+  },
   users: () => api<{ users: OpsUser[] }>("/api/ops/users"),
   createUser: (body: {
     username: string;

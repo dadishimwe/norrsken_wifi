@@ -447,22 +447,101 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.get("/api/ops/analytics", async (req, reply) => {
     try {
       await requireOps(req, reply, db);
-      const [perDay, apps, symptoms, wifi, zones, kpi] = await Promise.all([
-        db.query(`select * from v_reports_per_day`),
-        db.query(`select * from v_apps_frequency`),
-        db.query(`select * from v_symptoms_frequency`),
-        db.query(`select * from v_wifi_frequency`),
-        db.query(`select * from v_zone_report_totals limit 15`),
+      const q = req.query as { days?: string; channel?: string; zone_id?: string };
+      const days = Math.min(90, Math.max(1, Number(q.days) || 30));
+      const channel = q.channel === "qr" || q.channel === "slack" ? q.channel : null;
+      const zoneId = q.zone_id && /^[a-z0-9-]+$/.test(q.zone_id) ? q.zone_id : null;
+
+      const filters: string[] = [`r.created_at > now() - ($1 || ' days')::interval`];
+      const params: unknown[] = [String(days)];
+      if (channel) {
+        params.push(channel);
+        filters.push(`r.channel = $${params.length}`);
+      }
+      if (zoneId) {
+        params.push(zoneId);
+        filters.push(`r.zone_id = $${params.length}`);
+      }
+      const where = filters.join(" and ");
+
+      const [perDay, apps, symptoms, wifi, zones, kpi, zoneList] = await Promise.all([
+        db.query(
+          `
+          select d::date as day, coalesce(c.n, 0)::int as reports
+          from generate_series(
+            (current_date - ($1::int - 1)),
+            current_date,
+            '1 day'::interval
+          ) as d
+          left join (
+            select date_trunc('day', r.created_at)::date as day, count(*)::int as n
+            from report r
+            where ${where}
+            group by 1
+          ) c on c.day = d::date
+          order by 1
+          `,
+          params,
+        ),
+        db.query(
+          `
+          select a.app, count(*)::int as n
+          from report r
+          cross join lateral unnest(r.apps) as a(app)
+          where ${where}
+          group by a.app
+          order by n desc
+          limit 12
+          `,
+          params,
+        ),
+        db.query(
+          `
+          select s.symptom, count(*)::int as n
+          from report r
+          cross join lateral unnest(r.symptoms) as s(symptom)
+          where ${where}
+          group by s.symptom
+          order by n desc
+          limit 12
+          `,
+          params,
+        ),
+        db.query(
+          `
+          select r.wifi_context, count(*)::int as n
+          from report r
+          where ${where}
+          group by r.wifi_context
+          order by n desc
+          `,
+          params,
+        ),
+        db.query(
+          `
+          select z.id as zone_id, z.label, count(r.id)::int as report_count
+          from zone z
+          left join report r on r.zone_id = z.id and ${where}
+          group by z.id, z.label
+          having count(r.id) > 0
+          order by report_count desc
+          limit 12
+          `,
+          params,
+        ),
         db.query(`select * from v_kpi_daily`),
+        db.query(`select id, label from zone where active = true order by sort, label`),
       ]);
       return {
+        filters: { days, channel: channel ?? "all", zone_id: zoneId },
+        zones_options: zoneList.rows,
         kpi: kpi.rows[0] ?? null,
         reports_per_day: perDay.rows,
         apps: apps.rows,
         symptoms: symptoms.rows,
         wifi: wifi.rows,
         top_zones: zones.rows,
-        note: "Open incidents fill when the M4 incident engine clusters reports. Graphs use report data today.",
+        note: "Open incidents fill when the M4 incident engine clusters reports. Charts respect the filters above.",
       };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
@@ -473,27 +552,96 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.get("/api/ops/analytics/export.csv", async (req, reply) => {
     try {
       await requireOps(req, reply, db);
-      const kind = (req.query as { kind?: string }).kind || "apps";
+      const q = req.query as {
+        kind?: string;
+        days?: string;
+        channel?: string;
+        zone_id?: string;
+      };
+      const kind = q.kind || "apps";
+      const days = Math.min(90, Math.max(1, Number(q.days) || 30));
+      const channel = q.channel === "qr" || q.channel === "slack" ? q.channel : null;
+      const zoneId = q.zone_id && /^[a-z0-9-]+$/.test(q.zone_id) ? q.zone_id : null;
+
+      const filters: string[] = [`r.created_at > now() - ($1 || ' days')::interval`];
+      const params: unknown[] = [String(days)];
+      if (channel) {
+        params.push(channel);
+        filters.push(`r.channel = $${params.length}`);
+      }
+      if (zoneId) {
+        params.push(zoneId);
+        filters.push(`r.zone_id = $${params.length}`);
+      }
+      const where = filters.join(" and ");
+
       let rows: Record<string, unknown>[] = [];
       let header: string[] = [];
       if (kind === "per_day") {
-        const r = await db.query(`select * from v_reports_per_day`);
+        const r = await db.query(
+          `
+          select date_trunc('day', r.created_at)::date as day, count(*)::int as reports
+          from report r
+          where ${where}
+          group by 1
+          order by 1
+          `,
+          params,
+        );
         rows = r.rows;
         header = ["day", "reports"];
       } else if (kind === "symptoms") {
-        const r = await db.query(`select * from v_symptoms_frequency`);
+        const r = await db.query(
+          `
+          select s.symptom, count(*)::int as n
+          from report r
+          cross join lateral unnest(r.symptoms) as s(symptom)
+          where ${where}
+          group by s.symptom
+          order by n desc
+          `,
+          params,
+        );
         rows = r.rows;
         header = ["symptom", "n"];
       } else if (kind === "wifi") {
-        const r = await db.query(`select * from v_wifi_frequency`);
+        const r = await db.query(
+          `
+          select r.wifi_context, count(*)::int as n
+          from report r
+          where ${where}
+          group by r.wifi_context
+          order by n desc
+          `,
+          params,
+        );
         rows = r.rows;
         header = ["wifi_context", "n"];
       } else if (kind === "zones") {
-        const r = await db.query(`select * from v_zone_report_totals`);
+        const r = await db.query(
+          `
+          select z.id as zone_id, z.label, count(r.id)::int as report_count
+          from zone z
+          left join report r on r.zone_id = z.id and ${where}
+          group by z.id, z.label
+          order by report_count desc
+          `,
+          params,
+        );
         rows = r.rows;
         header = ["zone_id", "label", "report_count"];
       } else {
-        const r = await db.query(`select * from v_apps_frequency`);
+        const r = await db.query(
+          `
+          select a.app, count(*)::int as n
+          from report r
+          cross join lateral unnest(r.apps) as a(app)
+          where ${where}
+          group by a.app
+          order by n desc
+          `,
+          params,
+        );
         rows = r.rows;
         header = ["app", "n"];
       }

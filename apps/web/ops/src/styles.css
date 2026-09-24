@@ -581,6 +581,280 @@ html[data-theme="dark"] .login-card {
   text-align: right;
 }
 
+.filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 140px;
+}
+
+.filter-field select {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  min-height: 38px;
+}
+
+.filter-status {
+  font-size: 0.85rem;
+  align-self: center;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.chart-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.chart-head h2 {
+  margin: 0;
+}
+
+.chart-kind {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+/* Vertical column chart */
+.chart-v {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 0.35rem;
+  min-height: 160px;
+}
+
+.chart-v-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  padding-bottom: 1.4rem;
+}
+
+.chart-v-plot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+
+.chart-v-grid {
+  position: absolute;
+  inset: 0 0 1.4rem 0;
+  pointer-events: none;
+}
+
+.chart-v-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--border);
+}
+
+.chart-v-bars {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-evenly;
+  flex: 1 1 auto;
+  height: calc(100% - 1.4rem);
+  min-height: 120px;
+  position: relative;
+  z-index: 1;
+}
+
+.chart-v-col {
+  flex: 1 1 0;
+  max-width: var(--max-bar, 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+}
+
+.chart-v-bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+}
+
+.chart-v-bar {
+  width: 100%;
+  max-width: 100%;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  min-height: 0;
+  transition: height 0.25s ease;
+}
+
+.chart-v-val {
+  position: absolute;
+  top: -1.1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chart-v-label {
+  margin-top: 0.35rem;
+  height: 1.1rem;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Horizontal ranking */
+.chart-h {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chart-h-row {
+  display: grid;
+  grid-template-columns: minmax(88px, 140px) 1fr 36px;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.chart-h-label {
+  font-size: 0.8rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-h-track {
+  height: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.chart-h-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  max-width: 100%;
+  transition: width 0.25s ease;
+}
+
+.chart-h-n {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  text-align: right;
+  color: var(--text-muted);
+}
+
+/* Share / composition */
+.chart-share-stack {
+  display: flex;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-bottom: 0.85rem;
+}
+
+.chart-share-seg {
+  height: 100%;
+  min-width: 2px;
+}
+
+.seg-0 { background: var(--accent); }
+.seg-1 { background: #3d6b9a; }
+.seg-2 { background: #c4a35a; }
+.seg-3 { background: #8a6bb0; }
+.seg-4 { background: #5a9a7a; }
+
+.chart-share-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.chart-share-legend li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.chart-share-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.chart-share-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-share-meta {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 @keyframes rise {
   from {
     opacity: 0;
@@ -613,6 +887,27 @@ html[data-theme="dark"] .login-card {
 
   .bar-row {
     grid-template-columns: 80px 1fr 32px;
+  }
+
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-panel-wide {
+    grid-column: auto;
+  }
+
+  .chart-h-row {
+    grid-template-columns: minmax(72px, 100px) 1fr 32px;
+  }
+
+  .filters-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-field {
+    min-width: 0;
   }
 
   .panel-head {
