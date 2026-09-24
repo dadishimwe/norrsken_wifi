@@ -15,7 +15,7 @@ const MONTHS_SHORT = [
   "Dec",
 ] as const;
 
-const PIE_COLORS = ["#0d7a6a", "#3d6b9a", "#c4a35a", "#8a6bb0", "#5a9a7a", "#c45c3c"];
+const PIE_COLORS = ["#e85d04", "#1b2430", "#c4a35a", "#8a6bb0", "#5a9a7a", "#3d6b9a"];
 
 function niceMax(n: number): number {
   if (n <= 0) return 1;

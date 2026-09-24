@@ -25,186 +25,241 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   const zuba = `${base}zuba-logo-on-light.png`;
   const locationBits = [qr.zone.label];
   if (qr.zone.floor) locationBits.push(`Floor ${qr.zone.floor}`);
-  if (qr.zone.kind) locationBits.push(qr.zone.kind);
   const locationLine = locationBits.join(" · ");
+
+  // Zuba orange + Norrsken charcoal/black
+  const orange = "#E85D04";
+  const navy = "#1B2430";
+  const muted = "#6B7280";
+  const soft = "#FFF4EB";
 
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <title>Print · ${esc(qr.zone.label)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 14mm 16mm; }
   * { box-sizing: border-box; }
   html, body {
-    margin: 0; padding: 0; background: #fff; color: #1a2332;
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    margin: 0; padding: 0; background: #fff; color: ${navy};
+    font-family: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
   .flyer {
-    max-width: 180mm;
+    width: 100%;
+    max-width: 178mm;
     margin: 0 auto;
-    padding: 4mm 2mm 2mm;
+  }
+  .brand {
+    text-align: center;
+    margin: 0 0 18px;
   }
   .logo-norrsken {
     display: block;
-    height: 22px;
+    height: 26px;
     width: auto;
     margin: 0 auto 6px;
   }
   .house {
-    text-align: center;
-    font-size: 11px;
-    color: #5c6570;
-    margin: 0 0 14px;
-    letter-spacing: 0.02em;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: ${navy};
+    letter-spacing: 0.01em;
   }
   h1 {
     text-align: center;
-    font-size: 28px;
-    line-height: 1.15;
-    margin: 0 0 10px;
+    font-size: 34px;
+    line-height: 1.12;
+    margin: 0 0 14px;
     font-weight: 800;
-    color: #1a2332;
+    letter-spacing: -0.02em;
+    color: ${navy};
   }
-  h1 .accent { color: #e85d04; display: block; }
+  h1 .accent {
+    color: ${orange};
+    display: block;
+  }
   .intro {
     text-align: center;
-    font-size: 11px;
-    line-height: 1.45;
-    color: #6b7280;
-    max-width: 150mm;
-    margin: 0 auto 16px;
-  }
-  .location {
-    text-align: center;
-    margin: 0 auto 14px;
-    padding: 8px 14px;
-    border: 1.5px solid #e85d04;
-    border-radius: 10px;
-    background: #fff7f0;
-    max-width: 140mm;
-  }
-  .location-label {
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #e85d04;
-    font-weight: 700;
-    margin: 0 0 2px;
-  }
-  .location-name {
-    font-size: 16px;
-    font-weight: 800;
-    color: #1a2332;
-    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: ${muted};
+    max-width: 148mm;
+    margin: 0 auto 22px;
+    font-weight: 400;
   }
   .mid {
     display: grid;
-    grid-template-columns: 1fr 1.15fr;
-    gap: 14px;
+    grid-template-columns: 72mm 1fr;
+    gap: 18px;
     align-items: start;
-    margin-bottom: 14px;
+    margin: 0 0 18px;
   }
+  .qr-col { text-align: center; }
   .qr-box {
-    border: 2px dashed #e85d04;
-    border-radius: 14px;
-    background: #fff4eb;
-    padding: 12px;
-    text-align: center;
+    border: 2.5px dashed ${orange};
+    border-radius: 18px;
+    background: ${soft};
+    padding: 14px;
+    min-height: 72mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
   .qr-box img.qr {
-    width: 48mm;
-    height: 48mm;
+    width: 52mm;
+    height: 52mm;
     display: block;
-    margin: 0 auto;
     background: #fff;
-    border-radius: 6px;
+    border-radius: 4px;
   }
-  .qr-caption {
-    font-size: 10px;
-    color: #e85d04;
+  .location {
+    margin-top: 10px;
+    font-size: 13px;
     font-weight: 700;
-    margin: 8px 0 0;
+    color: ${navy};
   }
-  .steps { list-style: none; margin: 0; padding: 2px 0 0; }
+  .location span {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: ${orange};
+    margin-bottom: 2px;
+  }
+  .steps {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+  }
   .steps li {
     display: grid;
-    grid-template-columns: 22px 1fr;
-    gap: 8px;
-    margin-bottom: 10px;
+    grid-template-columns: 28px 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
     align-items: start;
   }
   .num {
-    width: 22px; height: 22px; border-radius: 50%;
-    background: #e85d04; color: #fff;
-    font-size: 12px; font-weight: 800;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: ${orange}; color: #fff;
+    font-size: 14px; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
+    line-height: 1;
   }
-  .step-title { font-size: 13px; font-weight: 800; margin: 0 0 2px; color: #1a2332; }
-  .step-hint { font-size: 10px; color: #6b7280; margin: 0; line-height: 1.35; }
+  .step-title {
+    font-size: 15px;
+    font-weight: 800;
+    margin: 2px 0 3px;
+    color: ${navy};
+  }
+  .step-hint {
+    font-size: 12px;
+    color: ${muted};
+    margin: 0;
+    line-height: 1.4;
+    font-weight: 400;
+  }
   .pills {
-    display: flex; flex-wrap: wrap; gap: 6px;
-    justify-content: center; margin: 0 0 16px;
+    display: flex; flex-wrap: wrap; gap: 8px;
+    justify-content: flex-start;
+    margin: 4px 0 22px;
   }
   .pill {
-    font-size: 10px; padding: 5px 10px; border-radius: 999px;
-    background: #e8eaed; color: #1a2332; font-weight: 600;
+    font-size: 12px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: #E8EAED;
+    color: ${navy};
+    font-weight: 600;
   }
-  .pill.on { background: #e85d04; color: #fff; }
+  .pill.on {
+    background: ${orange};
+    color: #fff;
+  }
   .features {
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
-    margin-bottom: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
   }
   .feat {
-    background: #1a2332; color: #fff; border-radius: 10px;
-    padding: 10px 8px; text-align: center;
+    background: ${navy};
+    color: #fff;
+    border-radius: 14px;
+    padding: 16px 12px;
+    text-align: center;
   }
-  .feat strong { display: block; color: #e85d04; font-size: 13px; margin-bottom: 3px; }
-  .feat span { font-size: 9px; color: #c5cad3; line-height: 1.3; }
+  .feat strong {
+    display: block;
+    color: ${orange};
+    font-size: 16px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+  .feat span {
+    font-size: 11px;
+    color: rgba(255,255,255,0.78);
+    line-height: 1.35;
+    font-weight: 400;
+  }
   .footer {
-    display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 12px; border-top: 1px solid #e5e7eb; padding-top: 10px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    border-top: 1px solid #E5E7EB;
+    padding-top: 14px;
   }
   .disclaimer {
-    font-size: 8px; color: #9ca3af; line-height: 1.4; margin: 0;
-    max-width: 115mm;
+    font-size: 9.5px;
+    color: #9CA3AF;
+    line-height: 1.45;
+    margin: 0;
+    max-width: 118mm;
   }
   .logo-zuba {
-    height: 28px; width: auto; display: block;
+    height: 36px;
+    width: auto;
+    display: block;
     flex-shrink: 0;
   }
   .partner-fallback {
-    font-size: 10px; font-weight: 700; color: #e85d04;
+    font-size: 11px;
+    font-weight: 700;
+    color: ${orange};
     white-space: nowrap;
-  }
-  @media print {
-    .flyer { max-width: none; }
   }
 </style></head><body>
 <div class="flyer">
-  <img class="logo-norrsken" src="${esc(norrsken)}" alt="Norrsken"/>
-  <p class="house">House Kigali</p>
+  <div class="brand">
+    <img class="logo-norrsken" src="${esc(norrsken)}" alt="Norrsken"/>
+    <p class="house">House Kigali</p>
+  </div>
+
   <h1>Internet not behaving?<span class="accent">Tell us in 10 seconds.</span></h1>
   <p class="intro">We're working to make the internet here consistently good, not just fast.
   Our monitors see the network; only you see the call that froze or the page that wouldn't load.
-  Scan, tap a few answers, done.</p>
-
-  <div class="location">
-    <p class="location-label">This poster · location</p>
-    <p class="location-name">${esc(locationLine)}</p>
-  </div>
+  Scan, tap four answers, done. Every report is matched against what the network was doing at that moment.</p>
 
   <div class="mid">
-    <div class="qr-box">
-      <img class="qr" src="${qr.png_data_url}" alt="QR code for ${esc(qr.zone.label)}"/>
-      <p class="qr-caption">Scan to report</p>
+    <div class="qr-col">
+      <div class="qr-box">
+        <img class="qr" src="${qr.png_data_url}" alt="QR code for ${esc(qr.zone.label)}"/>
+      </div>
+      <p class="location"><span>Location</span>${esc(locationLine)}</p>
     </div>
     <ol class="steps">
       <li><span class="num">1</span><div><p class="step-title">What happened</p><p class="step-hint">Couldn't connect, slow, call choppy, dropped</p></div></li>
       <li><span class="num">2</span><div><p class="step-title">When</p><p class="step-hint">Just now, or earlier</p></div></li>
-      <li><span class="num">3</span><div><p class="step-title">Which apps</p><p class="step-hint">Zoom, Teams, GitHub, Gmail, Microsoft 365…</p></div></li>
-      <li><span class="num">4</span><div><p class="step-title">Wi‑Fi context</p><p class="step-hint">Which network you were on</p></div></li>
+      <li><span class="num">3</span><div><p class="step-title">Which app</p><p class="step-hint">Zoom, Teams, Meet, WhatsApp, Slack…</p></div></li>
+      <li><span class="num">4</span><div><p class="step-title">Where you were</p><p class="step-hint">Floor or room, Wi‑Fi or wired</p></div></li>
     </ol>
   </div>
 
@@ -215,18 +270,18 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     <span class="pill">Dropped</span>
     <span class="pill">Just now</span>
     <span class="pill on">Zoom</span>
-    <span class="pill">${esc(qr.zone.label)}</span>
+    <span class="pill">Meeting room</span>
     <span class="pill">Wi‑Fi</span>
   </div>
 
   <div class="features">
     <div class="feat"><strong>4 taps</strong><span>No login, no app, no typing</span></div>
-    <div class="feat"><strong>Anonymous</strong><span>We don't collect your name</span></div>
+    <div class="feat"><strong>Anonymous</strong><span>Unless you'd like a reply</span></div>
     <div class="feat"><strong>All good?</strong><span>Say so too, one tap</span></div>
   </div>
 
   <div class="footer">
-    <p class="disclaimer">Reports go to the team that runs the Norrsken House network, in partnership with Zuba Broadband.
+    <p class="disclaimer">Reports go to the team that runs the Norrsken House network.
     We never see what you do online, only what you tell us here.</p>
     <img class="logo-zuba" src="${esc(zuba)}" alt="Zuba Broadband"
       onerror="this.style.display='none';this.nextElementSibling.style.display='block'"/>

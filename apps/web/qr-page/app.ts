@@ -183,14 +183,20 @@ async function run(b: Bootstrap) {
 
       <div id="override-panel" hidden class="card override-card">
         <h2>Where are you?</h2>
-        <select class="select" id="zone-select">
-          ${b.zones
-            .map(
-              (z) =>
-                `<option value="${escapeHtml(z.id)}" ${z.id === zoneId ? "selected" : ""}>${escapeHtml(z.label)}</option>`,
-            )
-            .join("")}
-        </select>
+        <div class="cselect" id="zone-cselect" data-value="${escapeHtml(zoneId)}">
+          <button type="button" class="cselect-trigger" data-action="toggle-zone-menu" aria-haspopup="listbox" aria-expanded="false">
+            <span class="cselect-value">${escapeHtml(zoneLabel)}</span>
+            <span class="cselect-chevron" aria-hidden="true"></span>
+          </button>
+          <ul class="cselect-menu" hidden role="listbox">
+            ${b.zones
+              .map(
+                (z) =>
+                  `<li role="option"><button type="button" class="cselect-option${z.id === zoneId ? " on" : ""}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(z.label)}</button></li>`,
+              )
+              .join("")}
+          </ul>
+        </div>
         <div class="actions">
           <button type="button" class="btn" data-action="cancel-override">Cancel</button>
           <button type="button" class="btn btn-primary" data-action="apply-override">Use this place</button>
@@ -333,10 +339,37 @@ async function run(b: Bootstrap) {
       const panel = root.querySelector<HTMLElement>("#override-panel");
       if (panel) panel.hidden = true;
     });
+    root.querySelector("[data-action='toggle-zone-menu']")?.addEventListener("click", () => {
+      const wrap = root.querySelector<HTMLElement>("#zone-cselect");
+      const menu = wrap?.querySelector<HTMLElement>(".cselect-menu");
+      const trigger = wrap?.querySelector<HTMLButtonElement>(".cselect-trigger");
+      if (!menu || !trigger || !wrap) return;
+      const willOpen = menu.hidden;
+      menu.hidden = !willOpen;
+      wrap.classList.toggle("open", willOpen);
+      trigger.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+    root.querySelectorAll<HTMLButtonElement>("[data-zone-opt]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const wrap = root.querySelector<HTMLElement>("#zone-cselect");
+        const menu = wrap?.querySelector<HTMLElement>(".cselect-menu");
+        const trigger = wrap?.querySelector<HTMLButtonElement>(".cselect-trigger");
+        const valueEl = wrap?.querySelector(".cselect-value");
+        const id = btn.dataset.zoneOpt!;
+        if (wrap) wrap.dataset.value = id;
+        if (valueEl) valueEl.textContent = b.zones.find((z) => z.id === id)?.label ?? id;
+        root.querySelectorAll<HTMLButtonElement>("[data-zone-opt]").forEach((b) => b.classList.remove("on"));
+        btn.classList.add("on");
+        if (menu) menu.hidden = true;
+        wrap?.classList.remove("open");
+        trigger?.setAttribute("aria-expanded", "false");
+      });
+    });
     root.querySelector("[data-action='apply-override']")?.addEventListener("click", () => {
-      const sel = root.querySelector<HTMLSelectElement>("#zone-select");
-      if (!sel) return;
-      zoneId = sel.value;
+      const wrap = root.querySelector<HTMLElement>("#zone-cselect");
+      const nextId = wrap?.dataset.value;
+      if (!nextId) return;
+      zoneId = nextId;
       zoneLabel = b.zones.find((z) => z.id === zoneId)?.label ?? zoneId;
       zoneSource = "override";
       const labelEl = root.querySelector(".zone-label");

@@ -8,13 +8,13 @@
   --text: #0a0a0a;
   --text-muted: #5c5f5c;
   --text-dim: #8a8d8a;
-  --accent: #0d7a6a;
-  --accent-dim: rgba(13, 122, 106, 0.12);
+  --accent: #e85d04;
+  --accent-dim: rgba(232, 93, 4, 0.12);
   --danger: #c43c3c;
   --warn: #b8860b;
   --ok: #2d8a55;
   --topbar-bg: rgba(244, 245, 244, 0.9);
-  --glow-a: rgba(13, 122, 106, 0.06);
+  --glow-a: rgba(232, 93, 4, 0.07);
   --glow-b: rgba(10, 10, 10, 0.03);
   --font: "DM Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
@@ -30,13 +30,13 @@ html[data-theme="dark"] {
   --text: #f5f5f5;
   --text-muted: #9a9a9a;
   --text-dim: #6b6b6b;
-  --accent: #7dd3c0;
-  --accent-dim: rgba(125, 211, 192, 0.15);
+  --accent: #ff8a3d;
+  --accent-dim: rgba(255, 138, 61, 0.18);
   --danger: #e86a6a;
   --warn: #e6b84d;
   --ok: #6fcf97;
   --topbar-bg: rgba(7, 7, 7, 0.85);
-  --glow-a: rgba(125, 211, 192, 0.08);
+  --glow-a: rgba(255, 138, 61, 0.1);
   --glow-b: rgba(255, 255, 255, 0.04);
 }
 
@@ -118,17 +118,18 @@ a {
 }
 
 .partner-logo-footer {
-  height: 22px;
+  height: 56px;
 }
 
 .powered-by {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 1rem 1.25rem 1.35rem;
+  gap: 0.65rem;
+  padding: 1.25rem 1.25rem 1.6rem;
   border-top: 1px solid var(--border);
-  font-size: 0.78rem;
+  font-size: 0.95rem;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -648,41 +649,125 @@ html[data-theme="dark"] .login-card {
   border-radius: 10px;
 }
 
-.filter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  min-width: 140px;
-}
-
-.filter-field select {
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.45rem 0.6rem;
-  min-height: 38px;
-}
-
 .filter-status {
   font-size: 0.85rem;
   align-self: center;
+}
+
+/* Custom select */
+.cselect {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 160px;
+  flex: 0 1 200px;
+}
+
+.cselect-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cselect-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 40px;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cselect-trigger:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.cselect-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cselect.open .cselect-trigger {
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
+}
+
+.cselect-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cselect-chevron {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--text-muted);
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.cselect.open .cselect-chevron {
+  transform: rotate(180deg);
+}
+
+.cselect-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.cselect-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cselect-menu button:hover,
+.cselect-menu button.on {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.cselect-menu button.on {
+  font-weight: 600;
 }
 
 .charts-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
-}
-
-.chart-panel-wide {
-  grid-column: 1 / -1;
 }
 
 .chart-panel-zones {
@@ -1003,7 +1088,6 @@ html[data-theme="dark"] .login-card {
     grid-template-columns: 1fr;
   }
 
-  .chart-panel-wide,
   .chart-panel-zones {
     grid-column: auto;
     max-width: none;
@@ -1023,8 +1107,9 @@ html[data-theme="dark"] .login-card {
     align-items: stretch;
   }
 
-  .filter-field {
+  .cselect {
     min-width: 0;
+    flex: 1 1 auto;
   }
 
   .panel-head {

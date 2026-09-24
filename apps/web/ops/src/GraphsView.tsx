@@ -6,6 +6,7 @@ import {
   VerticalBars,
   formatDayTick,
 } from "./Charts";
+import { CustomSelect } from "./CustomSelect";
 
 type Days = 7 | 14 | 30 | 90;
 type Channel = "all" | "qr" | "slack";
@@ -97,6 +98,11 @@ export function GraphsView() {
     value: Number(z.report_count) || 0,
   }));
 
+  const zoneOptions = [
+    { value: "", label: "All zones" },
+    ...(data.zones_options ?? []).map((z) => ({ value: z.id, label: z.label })),
+  ];
+
   return (
     <>
       <div className="panel-head" style={{ marginBottom: "1rem" }}>
@@ -142,46 +148,36 @@ export function GraphsView() {
       </div>
 
       <div className="filters-bar">
-        <label className="filter-field">
-          <span>Range</span>
-          <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value) as Days)}
-            disabled={loading}
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={14}>Last 14 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
-        </label>
-        <label className="filter-field">
-          <span>Channel</span>
-          <select
-            value={channel}
-            onChange={(e) => setChannel(e.target.value as Channel)}
-            disabled={loading}
-          >
-            <option value="all">All</option>
-            <option value="qr">QR</option>
-            <option value="slack">Slack</option>
-          </select>
-        </label>
-        <label className="filter-field">
-          <span>Zone</span>
-          <select
-            value={zoneId}
-            onChange={(e) => setZoneId(e.target.value)}
-            disabled={loading}
-          >
-            <option value="">All zones</option>
-            {(data.zones_options ?? []).map((z) => (
-              <option key={z.id} value={z.id}>
-                {z.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <CustomSelect
+          label="Range"
+          value={String(days)}
+          disabled={loading}
+          onChange={(v) => setDays(Number(v) as Days)}
+          options={[
+            { value: "7", label: "Last 7 days" },
+            { value: "14", label: "Last 14 days" },
+            { value: "30", label: "Last 30 days" },
+            { value: "90", label: "Last 90 days" },
+          ]}
+        />
+        <CustomSelect
+          label="Channel"
+          value={channel}
+          disabled={loading}
+          onChange={(v) => setChannel(v as Channel)}
+          options={[
+            { value: "all", label: "All" },
+            { value: "qr", label: "QR" },
+            { value: "slack", label: "Slack" },
+          ]}
+        />
+        <CustomSelect
+          label="Zone"
+          value={zoneId}
+          disabled={loading}
+          onChange={setZoneId}
+          options={zoneOptions}
+        />
         {loading ? <span className="muted filter-status">Updating…</span> : null}
       </div>
 
@@ -212,7 +208,7 @@ export function GraphsView() {
       </div>
 
       <div className="charts-grid">
-        <section className="panel chart-panel chart-panel-wide">
+        <section className="panel chart-panel">
           <div className="chart-head">
             <h2>Reports per day</h2>
             <span className="chart-kind">Vertical · time series</span>
