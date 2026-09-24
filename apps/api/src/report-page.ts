@@ -72,12 +72,12 @@ export async function registerReportPageRoutes(
     template = fs.readFileSync(path.join(qrDist, "index.html"), "utf8");
   }
 
-  // Static assets for the QR page (js/css)
+  // Static assets for the QR page (js/css + brand logos at dist root)
   if (qrDist) {
     const { default: fastifyStatic } = await import("@fastify/static");
     await app.register(fastifyStatic, {
-      root: path.join(qrDist, "assets"),
-      prefix: "/qr/assets/",
+      root: qrDist,
+      prefix: "/qr/",
       decorateReply: false,
     });
   }

@@ -51,8 +51,6 @@ export function App() {
             <strong>Network Ops</strong>
             <span>Norrsken House Kigali</span>
           </div>
-          <span className="brand-sep" aria-hidden="true" />
-          <PartnerLogo theme={theme} className="partner-logo partner-logo-top" />
         </div>
         <div className="topbar-actions">
           <div className="user-chip">
@@ -96,6 +94,11 @@ export function App() {
           <DashboardView />
         )}
       </main>
+
+      <footer className="powered-by">
+        <span>Powered by</span>
+        <PartnerLogo theme={theme} className="partner-logo partner-logo-footer" />
+      </footer>
     </div>
   );
 }

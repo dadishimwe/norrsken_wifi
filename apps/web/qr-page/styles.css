@@ -52,25 +52,33 @@ body {
 }
 
 .logo-norrsken {
-  height: 14px;
+  height: 16px;
   width: auto;
   display: block;
-  opacity: 0.9;
+  opacity: 0.92;
 }
 
 .logo-zuba {
-  height: 14px;
+  height: 18px;
   width: auto;
   display: block;
-  opacity: 0.75;
 }
 
-.brand-dot {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--dim);
-  flex-shrink: 0;
+.powered-by {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 1.75rem;
+  padding-top: 1rem;
+  font-size: 0.72rem;
+  color: var(--dim);
+  letter-spacing: 0.02em;
+}
+
+.powered-by .logo-zuba {
+  height: 16px;
+  opacity: 0.9;
 }
 
 .eyebrow {

@@ -4,19 +4,20 @@ Drop partner and house logos here. Both the **ops dashboard** (`/ops/`) and the 
 
 ## Add Zuba Broadband logos
 
-Place these two files in this directory:
+Place these two **real PNG files** in this directory (not Finder aliases / shortcuts):
 
 | Filename | Use when |
 |---|---|
-| `zuba-logo-on-light.png` | Light backgrounds (print flyer, ops light theme, QR form) |
-| `zuba-logo-on-dark.png` | Dark backgrounds (ops dark theme, dark UI chrome) |
+| `zuba-logo-on-light.png` | Light backgrounds (print flyer, ops light theme, QR form) — dark/coloured mark |
+| `zuba-logo-on-dark.png` | Dark backgrounds (ops dark theme) — light/white mark |
 
-PNG is fine (what Zuba ships). Keep transparent backgrounds if you can.
+**Important:** On macOS, dragging from Finder can create a tiny “alias” file that browsers can’t display. Copy with Terminal instead:
 
-### Naming tip
+```bash
+cp /path/to/real-logo.png apps/web/brand/zuba-logo-on-light.png
+```
 
-- **on-light** = the logo version meant to sit on white / pale backgrounds (usually the full-colour or dark mark)
-- **on-dark** = the logo version meant to sit on charcoal / black (usually white or light mark)
+Confirm with `file apps/web/brand/zuba-*.png` — you should see `PNG image data`, not `MacOS Alias`.
 
 ## Already here
 
@@ -26,8 +27,6 @@ PNG is fine (what Zuba ships). Keep transparent backgrounds if you can.
 | `norrsken-logo-white.svg` | Norrsken wordmark for dark UI |
 
 ## After adding files
-
-Rebuild so copies land in both apps:
 
 ```bash
 pnpm --filter @norrsken/web build

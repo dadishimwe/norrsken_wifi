@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { downloadCsv, opsApi, type AnalyticsPayload } from "./api";
 import {
   HorizontalBars,
-  ShareBars,
+  PieChart,
   VerticalBars,
   formatDayTick,
 } from "./Charts";
@@ -20,6 +20,20 @@ function qs(params: Record<string, string | number | null | undefined>): string 
   return s ? `?${s}` : "";
 }
 
+function useCompactChartLabels() {
+  const [compact, setCompact] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 720px)");
+    const onChange = () => setCompact(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return compact;
+}
+
 export function GraphsView() {
   const [days, setDays] = useState<Days>(30);
   const [channel, setChannel] = useState<Channel>("all");
@@ -27,6 +41,7 @@ export function GraphsView() {
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const compactLabels = useCompactChartLabels();
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +78,7 @@ export function GraphsView() {
   const dayPoints = data.reports_per_day.map((d) => ({
     label: String(d.day).slice(0, 10),
     value: Number(d.reports) || 0,
+    title: String(d.day).slice(0, 10),
   }));
   const wifiPoints = data.wifi.map((w) => ({
     label: w.wifi_context,
@@ -95,7 +111,10 @@ export function GraphsView() {
             type="button"
             className="btn"
             onClick={() =>
-              downloadCsv(`/api/ops/analytics/export.csv${qs({ kind: "apps", days, channel, zone_id: zoneId || undefined })}`, "apps.csv")
+              downloadCsv(
+                `/api/ops/analytics/export.csv${qs({ kind: "apps", days, channel, zone_id: zoneId || undefined })}`,
+                "apps.csv",
+              )
             }
           >
             Export apps
@@ -178,9 +197,7 @@ export function GraphsView() {
         </div>
         <div className="kpi">
           <div className="label">Window total</div>
-          <div className="value">
-            {dayPoints.reduce((s, p) => s + p.value, 0)}
-          </div>
+          <div className="value">{dayPoints.reduce((s, p) => s + p.value, 0)}</div>
           <div className="hint">{days}d · filtered</div>
         </div>
         <div className="kpi">
@@ -200,15 +217,20 @@ export function GraphsView() {
             <h2>Reports per day</h2>
             <span className="chart-kind">Vertical · time series</span>
           </div>
-          <VerticalBars items={dayPoints} height={240} formatLabel={formatDayTick} />
+          <VerticalBars
+            items={dayPoints}
+            height={240}
+            compactLabels={compactLabels}
+            formatLabel={formatDayTick}
+          />
         </section>
 
         <section className="panel chart-panel">
           <div className="chart-head">
             <h2>Wi‑Fi context</h2>
-            <span className="chart-kind">Share · composition</span>
+            <span className="chart-kind">Pie · composition</span>
           </div>
-          <ShareBars items={wifiPoints} />
+          <PieChart items={wifiPoints} />
         </section>
 
         <section className="panel chart-panel">
@@ -227,12 +249,16 @@ export function GraphsView() {
           <HorizontalBars items={symptomPoints} maxItems={10} />
         </section>
 
-        <section className="panel chart-panel chart-panel-wide">
+        <section className="panel chart-panel chart-panel-zones">
           <div className="chart-head">
             <h2>Top zones</h2>
-            <span className="chart-kind">Horizontal · ranking</span>
+            <span className="chart-kind">Vertical · ranking</span>
           </div>
-          <HorizontalBars items={zonePoints} maxItems={12} />
+          <VerticalBars
+            items={zonePoints.slice(0, 8)}
+            height={220}
+            formatLabel={(label) => (label.length > 14 ? `${label.slice(0, 12)}…` : label)}
+          />
         </section>
       </div>
 

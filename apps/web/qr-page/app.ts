@@ -144,10 +144,7 @@ async function run(b: Bootstrap) {
     root.innerHTML = `
       <header class="header">
         <div class="brand-row">
-          <img class="logo-norrsken" src="/qr/norrsken-logo-dark.svg" alt="Norrsken" width="120" height="16" />
-          <span class="brand-dot" aria-hidden="true"></span>
-          <img class="logo-zuba" src="/qr/zuba-logo-on-light.png" alt="Zuba Broadband" width="72" height="16"
-            onerror="this.style.display='none'" />
+          <img class="logo-norrsken" src="/qr/norrsken-logo-dark.svg" alt="Norrsken" />
         </div>
         <p class="eyebrow">Network feedback</p>
         <div class="zone-row">
@@ -197,6 +194,8 @@ async function run(b: Bootstrap) {
           <button type="button" class="btn btn-primary" data-action="apply-override">Use this place</button>
         </div>
       </div>
+
+      ${poweredByHtml()}
     `;
     bind();
   }
@@ -488,6 +487,14 @@ async function run(b: Bootstrap) {
   render();
 }
 
+function poweredByHtml(): string {
+  return `
+    <footer class="powered-by">
+      <span>Powered by</span>
+      <img class="logo-zuba" src="/qr/zuba-logo-on-light.png" alt="Zuba Broadband" />
+    </footer>`;
+}
+
 function doneHtml(recentCount: number): string {
   const status =
     recentCount >= 3
@@ -512,5 +519,6 @@ function doneHtml(recentCount: number): string {
       <p>Your report was saved. You can close this page.</p>
       <p class="status">${escapeHtml(status)}</p>
     </div>
+    ${poweredByHtml()}
   `;
 }

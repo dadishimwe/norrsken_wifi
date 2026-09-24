@@ -72,7 +72,7 @@ a {
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -114,11 +114,32 @@ a {
   height: 18px;
   width: auto;
   display: block;
-  opacity: 0.9;
+  opacity: 0.92;
 }
 
-.partner-logo-top {
-  height: 18px;
+.partner-logo-footer {
+  height: 22px;
+}
+
+.powered-by {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem 1.35rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.powered-by-login {
+  margin-top: 1.25rem;
+  border-top: none;
+  padding-top: 0;
+}
+
+.app-shell .page {
+  flex: 1;
 }
 
 .login-partner {
@@ -664,6 +685,13 @@ html[data-theme="dark"] .login-card {
   grid-column: 1 / -1;
 }
 
+.chart-panel-zones {
+  grid-column: 1 / -1;
+  max-width: 520px;
+  width: 100%;
+  justify-self: start;
+}
+
 .chart-head {
   display: flex;
   align-items: baseline;
@@ -889,6 +917,54 @@ html[data-theme="dark"] .login-card {
   color: var(--text-muted);
 }
 
+.chart-pie {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+
+.chart-pie-svg {
+  width: 160px;
+  height: 160px;
+  display: block;
+}
+
+.chart-pie-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.chart-pie-legend li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.chart-pie-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.chart-pie-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-pie-meta {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 @keyframes rise {
   from {
     opacity: 0;
@@ -927,8 +1003,15 @@ html[data-theme="dark"] .login-card {
     grid-template-columns: 1fr;
   }
 
-  .chart-panel-wide {
+  .chart-panel-wide,
+  .chart-panel-zones {
     grid-column: auto;
+    max-width: none;
+  }
+
+  .chart-pie {
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
 
   .chart-h-row {
