@@ -1,0 +1,9 @@
+{
+  "keys": [
+    {
+      "kid": "k1",
+      "alg": "Ed25519",
+      "publicKeySpkiBase64url": "MCowBQYDK2VwAyEAK4tPMgWUBrf9QTNoRALOn4gd6K3WZ0cGladCK_16ick"
+    }
+  ]
+}

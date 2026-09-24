@@ -136,9 +136,28 @@ NODE_ENV=production pnpm --filter @norrsken/api start
 
 Then browse `http://<vm-ip>:3000/ops/`.
 
+## QR report page (members & guests)
+
+No login. Generate signed test URLs:
+
+```bash
+pnpm qr:keygen   # if you don't have scripts/keys yet
+PUBLIC_BASE_URL=http://YOUR_IP:8080 pnpm qr:gen
+```
+
+Open a line from `scripts/out/links.txt` on a phone, or print `scripts/out/qr-sheet.html`.
+
+**Keys:** the private signing key lives in `scripts/keys/` (not in git). On the VM either:
+
+1. Copy `scripts/keys/qr-ed25519.pem` from your laptop securely, **or**
+2. Run `pnpm qr:keygen` once on the VM, commit/push the updated `config/qr-public-keys.json`, then `pnpm qr:gen`.
+
+Dashboard for staff remains at `/ops/`.
+
 ## Smoke test after deploy
 
 ```bash
 curl -s http://127.0.0.1:8080/health
 # open http://<vm-ip>:8080/ops/ and sign in
+# open a URL from scripts/out/links.txt (member/guest report — no login)
 ```

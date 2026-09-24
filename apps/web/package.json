@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config ops/vite.config.ts",
-    "build": "vite build --config ops/vite.config.ts",
-    "typecheck": "tsc -p ops/tsconfig.json --noEmit",
+    "dev:qr": "vite --config qr-page/vite.config.ts",
+    "build": "pnpm run build:ops && pnpm run build:qr",
+    "build:ops": "vite build --config ops/vite.config.ts",
+    "build:qr": "vite build --config qr-page/vite.config.ts",
+    "typecheck": "tsc -p ops/tsconfig.json --noEmit && tsc -p qr-page/tsconfig.json --noEmit",
     "lint": "echo 'web lint: ok'",
     "test": "echo 'web test: ok'"
   },

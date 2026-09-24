@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
 import {
   HASH_CHAIN_LOCK,
@@ -24,6 +27,28 @@ import {
 import type { Env } from "./env.js";
 import { campusWeight, parseCampusIps } from "./campus.js";
 import { mintEditToken, verifyEditToken } from "./edit-token.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function loadSsidOptions(): { id: string; label: string }[] {
+  const candidates = [
+    path.resolve(__dirname, "../../../config/ssids.json"),
+    path.resolve(process.cwd(), "config/ssids.json"),
+  ];
+  for (const p of candidates) {
+    if (!fs.existsSync(p)) continue;
+    const raw = JSON.parse(fs.readFileSync(p, "utf8")) as {
+      ssids: { id: string; label: string }[];
+    };
+    return raw.ssids ?? [];
+  }
+  return [
+    { id: "member_wifi", label: "Member Wi-Fi" },
+    { id: "guest_wifi", label: "Guest Wi-Fi" },
+    { id: "wired", label: "Wired" },
+    { id: "unknown", label: "Not sure" },
+  ];
+}
 
 export class HttpError extends Error {
   constructor(
@@ -55,7 +80,7 @@ export async function createReport(
 ): Promise<{
   report_id: string;
   edit_token: string;
-  clarifiers: ReturnType<typeof pickClarifiers>;
+  clarifiers: { id: string; question: string; options: { id: string; label: string }[] }[];
   recent_count: number;
 }> {
   const parsed = createReportSchema.safeParse(body);
@@ -177,6 +202,7 @@ export async function createReport(
   await upsertSession(db, actorHash, input.zone_id, input.wifi_context);
 
   const hasIncident = await zoneHasOpenIncident(db, input.zone_id);
+  const ssidOptions = loadSsidOptions();
   const clarifiers = pickClarifiers({
     symptoms: input.symptoms,
     clarifiers: input.clarifiers,
@@ -184,6 +210,7 @@ export async function createReport(
     hasActiveIncident: hasIncident,
     isFirstWifiThisSession: input.wifi_context === "unknown",
     maxClarifiers: hasIncident ? 2 : 1,
+    ssidOptions,
   });
 
   const recentCount = await countRecentReportsInZone(db, input.zone_id, 10);
@@ -191,7 +218,11 @@ export async function createReport(
   return {
     report_id: reportId,
     edit_token: mintEditToken(env.EDIT_TOKEN_SECRET, reportId, actorHash),
-    clarifiers,
+    clarifiers: clarifiers.map((c) => ({
+      id: c.id,
+      question: c.question,
+      options: c.options,
+    })),
     recent_count: recentCount,
   };
 }

@@ -8,7 +8,9 @@ coverage
 *.tsbuildinfo
 apps/api/keys
 scripts/keys
+scripts/out
 apps/web/ops/dist
+apps/web/qr-page/dist
 
 # Local build plans (not published)
 cursor.md

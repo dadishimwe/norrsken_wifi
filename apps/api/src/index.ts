@@ -8,6 +8,7 @@ import { loadEnv } from "./env.js";
 import { startJobs } from "./jobs.js";
 import { registerRoutes } from "./routes.js";
 import { registerOpsRoutes } from "./ops-routes.js";
+import { registerReportPageRoutes } from "./report-page.js";
 import { ensureBootstrapAdmin } from "./bootstrap-admin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,10 +59,15 @@ export async function buildApp() {
     },
     bodyLimit: 32 * 1024,
     trustProxy: false,
+    routerOptions: {
+      // Signed QR tokens include an Ed25519 sig in the path
+      maxParamLength: 512,
+    },
   });
 
   await registerRoutes(app, db, env);
   await registerOpsRoutes(app, db, env);
+  await registerReportPageRoutes(app, db, env);
 
   const staticDir = resolveOpsStaticDir(env.OPS_STATIC_DIR);
   if (staticDir) {

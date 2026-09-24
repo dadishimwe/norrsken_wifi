@@ -16,7 +16,9 @@
     "db:migrate": "pnpm --filter @norrsken/db migrate",
     "db:seed": "pnpm --filter @norrsken/db seed",
     "db:reset": "pnpm --filter @norrsken/db reset",
-    "ops:create-admin": "pnpm --filter @norrsken/scripts create-admin"
+    "ops:create-admin": "pnpm --filter @norrsken/scripts create-admin",
+    "qr:keygen": "pnpm --filter @norrsken/scripts keygen",
+    "qr:gen": "pnpm --filter @norrsken/scripts qr-gen"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

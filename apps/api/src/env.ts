@@ -22,6 +22,8 @@ const envSchema = z.object({
   OPS_ADMIN_PASSWORD: z.string().optional(),
   OPS_ADMIN_DISPLAY_NAME: z.string().optional(),
   OPS_STATIC_DIR: z.string().optional(),
+  QR_STATIC_DIR: z.string().optional(),
+  QR_PUBLIC_KEYS_PATH: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

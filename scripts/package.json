@@ -8,12 +8,17 @@
     "typecheck": "echo 'scripts: stub'",
     "lint": "echo 'scripts: stub'",
     "test": "echo 'scripts: stub'",
-    "create-admin": "tsx create-admin.ts"
+    "create-admin": "tsx create-admin.ts",
+    "keygen": "tsx keygen.ts",
+    "qr-gen": "tsx qr-gen.ts"
   },
   "dependencies": {
-    "@norrsken/db": "workspace:*"
+    "@norrsken/db": "workspace:*",
+    "@norrsken/shared": "workspace:*",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.5",
     "tsx": "^4.19.2"
   }
 }
