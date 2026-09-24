@@ -152,41 +152,86 @@ export function ZonesAdmin({ canEdit }: Props) {
 
   function printQr() {
     if (!qr) return;
-    const w = window.open("", "_blank", "noopener,noreferrer");
-    if (!w) {
-      setError("Pop-up blocked — allow pop-ups to print.");
-      return;
-    }
-    w.document.open();
-    w.document.write(`<!doctype html>
+    setError(null);
+
+    // Print via a same-origin iframe — no pop-up (browsers block window.open here).
+    const html = `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
-<title>Print QR · ${qr.zone.label}</title>
+<title>Print QR · ${escapeAttr(qr.zone.label)}</title>
 <style>
   @page { margin: 16mm; }
-  body { font-family: system-ui, sans-serif; color: #0a0a0a; margin: 0; }
-  .sheet { max-width: 420px; margin: 24px auto; text-align: center; }
+  html, body { margin: 0; background: #fff; color: #0a0a0a;
+    font-family: system-ui, -apple-system, sans-serif; }
+  .sheet { max-width: 420px; margin: 24px auto; text-align: center; padding: 8px; }
   img { width: 280px; height: 280px; }
   h1 { font-size: 1.35rem; margin: 16px 0 8px; }
-  p { color: #555; }
+  p { color: #555; margin: 0; }
   .url { font-size: 11px; word-break: break-all; color: #888; margin-top: 16px; }
-  .actions { margin: 24px 0; display: flex; gap: 8px; justify-content: center; }
-  button { font: inherit; padding: 10px 16px; cursor: pointer; }
-  @media print { .actions { display: none; } }
 </style></head><body>
 <div class="sheet">
   <img src="${qr.png_data_url}" alt="QR code"/>
-  <h1>${qr.zone.label}</h1>
+  <h1>${escapeAttr(qr.zone.label)}</h1>
   <p>Wi‑Fi problem? Scan (under 10 seconds)</p>
-  <div class="url">${qr.url}</div>
-  <div class="actions">
-    <button onclick="window.print()">Print</button>
-    <button onclick="window.close()">Close</button>
-  </div>
+  <div class="url">${escapeAttr(qr.url)}</div>
 </div>
-<script>setTimeout(() => window.print(), 300);</script>
-</body></html>`);
-    w.document.close();
+</body></html>`;
+
+    const prev = document.getElementById("norrsken-print-frame");
+    prev?.remove();
+
+    const iframe = document.createElement("iframe");
+    iframe.id = "norrsken-print-frame";
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText =
+      "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument;
+    const win = iframe.contentWindow;
+    if (!doc || !win) {
+      setError("Could not prepare print view. Try again.");
+      iframe.remove();
+      return;
+    }
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const cleanup = () => {
+      window.setTimeout(() => iframe.remove(), 500);
+    };
+
+    let printed = false;
+    const trigger = () => {
+      if (printed) return;
+      printed = true;
+      try {
+        win.focus();
+        win.print();
+      } finally {
+        cleanup();
+      }
+    };
+
+    // Wait for the QR image so print isn’t blank
+    const img = doc.querySelector("img");
+    if (img && !img.complete) {
+      img.onload = () => trigger();
+      img.onerror = () => trigger();
+      window.setTimeout(trigger, 1500);
+    } else {
+      window.setTimeout(trigger, 50);
+    }
+  }
+
+  function escapeAttr(s: string): string {
+    return s
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
   }
 
   return (
