@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { downloadCsv, opsApi, type DashboardPayload, type ReportsPage } from "./api";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { formatClarifiersDisplay, labelApp, labelSymptom } from "./labels";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
@@ -25,27 +27,55 @@ function clarifierText(c: Record<string, unknown> | undefined): string {
 
 function RowMenu({ onDelete }: { onDelete: () => void }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  const place = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const menuW = 120;
+    setPos({
+      top: r.bottom + 4,
+      left: Math.min(window.innerWidth - menuW - 8, Math.max(8, r.right - menuW)),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+  }, [open, place]);
 
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
+    function onReposition() {
+      place();
+    }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onReposition, true);
+    window.addEventListener("resize", onReposition);
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onReposition, true);
+      window.removeEventListener("resize", onReposition);
     };
-  }, [open]);
+  }, [open, place]);
 
   return (
-    <div className="row-menu" ref={ref}>
+    <div className="row-menu">
       <button
+        ref={triggerRef}
         type="button"
         className="row-menu-trigger"
         aria-label="Row actions"
@@ -54,34 +84,51 @@ function RowMenu({ onDelete }: { onDelete: () => void }) {
       >
         ⋮
       </button>
-      {open ? (
-        <div className="row-menu-pop" role="menu">
-          <button
-            type="button"
-            className="row-menu-item danger"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onDelete();
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      ) : null}
+      {open && pos
+        ? createPortal(
+            <div
+              ref={popRef}
+              className="row-menu-pop row-menu-pop-fixed"
+              role="menu"
+              style={{ top: pos.top, left: pos.left }}
+            >
+              <button
+                type="button"
+                className="row-menu-item danger"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onDelete();
+                }}
+              >
+                Delete
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
 
 type Props = { canEdit?: boolean };
 
+type PendingDelete = { id: string; zoneLabel: string; when: string };
+
 export function DashboardView({ canEdit = false }: Props) {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [reportsPage, setReportsPage] = useState<ReportsPage | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
+  const [pending, setPending] = useState<PendingDelete | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  function flash(msg: string) {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 2200);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -105,21 +152,24 @@ export function DashboardView({ canEdit = false }: Props) {
     };
   }, [page, tick]);
 
-  async function deleteReport(id: string, zoneLabel: string) {
-    if (!canEdit) return;
-    if (!window.confirm(`Delete this report from ${zoneLabel}? This cannot be undone.`)) return;
-    setBusyId(id);
+  async function confirmDelete() {
+    if (!pending || !canEdit) return;
+    setBusy(true);
     try {
-      await opsApi.deleteReport(id);
+      await opsApi.deleteReport(pending.id);
+      setPending(null);
+      flash("Report deleted");
       setTick((t) => t + 1);
-    } catch {
-      window.alert("Could not delete report.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "delete_failed";
+      setError(`Delete failed: ${msg}`);
+      flash(`Delete failed: ${msg}`);
     } finally {
-      setBusyId(null);
+      setBusy(false);
     }
   }
 
-  if (error) return <p className="error">{error}</p>;
+  if (error && !data) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;
 
   const kpi = data.kpi;
@@ -127,6 +177,24 @@ export function DashboardView({ canEdit = false }: Props) {
 
   return (
     <>
+      {toast ? <div className="toast">{toast}</div> : null}
+      <ConfirmDialog
+        open={!!pending}
+        title="Delete this report?"
+        body={
+          pending
+            ? `Remove the report from ${pending.zoneLabel} (${pending.when})? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete report"
+        tone="danger"
+        busy={busy}
+        onCancel={() => !busy && setPending(null)}
+        onConfirm={() => void confirmDelete()}
+      />
+
+      {error ? <p className="error">{error}</p> : null}
+
       <div className="kpi-row">
         <div className="kpi">
           <div className="label">Reports today</div>
@@ -226,7 +294,7 @@ export function DashboardView({ canEdit = false }: Props) {
         ) : (
           <>
             <div className="table-wrap">
-              <table className="table table-dense">
+              <table className="table table-dense table-hover">
                 <thead>
                   <tr>
                     <th>When</th>
@@ -245,7 +313,7 @@ export function DashboardView({ canEdit = false }: Props) {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} className={busyId === r.id ? "row-busy" : undefined}>
+                    <tr key={r.id} className={busy && pending?.id === r.id ? "row-busy" : undefined}>
                       <td title={r.created_at}>{timeAgo(r.created_at)}</td>
                       <td>{r.zone_label}</td>
                       <td>{r.zone_source ?? "—"}</td>
@@ -273,7 +341,15 @@ export function DashboardView({ canEdit = false }: Props) {
                       <td>{fmtNum(r.weight, 1)}</td>
                       {canEdit ? (
                         <td className="col-actions">
-                          <RowMenu onDelete={() => void deleteReport(r.id, r.zone_label)} />
+                          <RowMenu
+                            onDelete={() =>
+                              setPending({
+                                id: r.id,
+                                zoneLabel: r.zone_label,
+                                when: timeAgo(r.created_at),
+                              })
+                            }
+                          />
                         </td>
                       ) : null}
                     </tr>

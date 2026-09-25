@@ -23,6 +23,22 @@ export async function listAllZones(db: Pool): Promise<ZoneRow[]> {
   return rows;
 }
 
+export type ZoneWithCounts = ZoneRow & { report_count: number };
+
+export async function listAllZonesWithCounts(db: Pool): Promise<ZoneWithCounts[]> {
+  const { rows } = await db.query<ZoneWithCounts>(
+    `
+    select z.id, z.label, z.floor, z.kind, z.active, z.sort,
+           coalesce(count(r.id), 0)::int as report_count
+    from zone z
+    left join report r on r.zone_id = z.id
+    group by z.id
+    order by z.sort, z.id
+    `,
+  );
+  return rows;
+}
+
 export async function createZone(
   db: Pool,
   input: {

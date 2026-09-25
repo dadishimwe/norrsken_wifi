@@ -15,6 +15,7 @@ export type OpsZone = {
   kind: string;
   active: boolean;
   sort: number;
+  report_count?: number;
 };
 
 export type ZoneQr = {
@@ -188,11 +189,8 @@ export const opsApi = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  deleteZone: (id: string, force = false) =>
-    api<{ ok?: boolean; deleted?: string; disabled?: boolean; message?: string }>(
-      `/api/ops/zones/${id}${force ? "?force=1" : ""}`,
-      { method: "DELETE" },
-    ),
+  deleteZone: (id: string) =>
+    api<{ ok?: boolean; deleted?: string }>(`/api/ops/zones/${id}`, { method: "DELETE" }),
   zoneQr: (id: string) =>
     api<
       ZoneQr & {

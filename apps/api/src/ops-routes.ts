@@ -9,7 +9,7 @@ import {
   deleteZone,
   getOpsUserByUsername,
   getZone,
-  listAllZones,
+  listAllZonesWithCounts,
   listOpsUsers,
   resolveOpsSession,
   revokeOpsSession,
@@ -255,7 +255,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.get("/api/ops/zones", async (req, reply) => {
     try {
       await requireOps(req, reply, db);
-      const zones = await listAllZones(db);
+      const zones = await listAllZonesWithCounts(db);
       return { zones };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
@@ -305,6 +305,16 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         })
         .safeParse(req.body);
       if (!body.success) return reply.code(400).send({ error: "invalid_body" });
+      if (body.data.active === false) {
+        const reportCount = await countReportsForZone(db, id);
+        if (reportCount > 0) {
+          return reply.code(409).send({
+            error: "zone_has_reports",
+            report_count: reportCount,
+            hint: "Zones with reports cannot be disabled.",
+          });
+        }
+      }
       const zone = await updateZone(db, id, body.data);
       if (!zone) return reply.code(404).send({ error: "not_found" });
       return { zone };
@@ -350,25 +360,15 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       const me = await requireOps(req, reply, db);
       requireAdmin(me);
       const { id } = req.params as { id: string };
-      const force = (req.query as { force?: string }).force === "1";
       const zone = await getZone(db, id);
       if (!zone) return reply.code(404).send({ error: "not_found" });
       const reportCount = await countReportsForZone(db, id);
-      if (reportCount > 0 && !force) {
+      if (reportCount > 0) {
         return reply.code(409).send({
           error: "zone_has_reports",
           report_count: reportCount,
-          hint: "Disable the zone, or delete with ?force=1 to remove the zone row (reports keep zone_id).",
+          hint: "Zones with reports cannot be deleted or disabled.",
         });
-      }
-      // If force with reports, we cannot delete due to FK — disable instead unless no reports
-      if (reportCount > 0 && force) {
-        const updated = await updateZone(db, id, { active: false });
-        return {
-          zone: updated,
-          disabled: true,
-          message: "Zone has reports; disabled instead of deleted.",
-        };
       }
       await deleteZone(db, id);
       return { ok: true, deleted: id };

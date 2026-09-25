@@ -103,8 +103,11 @@ cd /opt/norrsken
 git pull
 docker compose up -d --build
 
-# Logs
+# Logs (API + ops errors)
 docker compose logs -f api
+
+# Last 100 lines only
+docker compose logs --tail=100 api
 
 # Backup Postgres
 docker compose exec -T postgres pg_dump -U norrsken norrsken > backup-$(date +%F).sql

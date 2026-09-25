@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { opsApi, type OpsZone, type ZoneQr } from "./api";
+import { AlertDialog, ConfirmDialog } from "./ConfirmDialog";
 import { buildPrintFlyerHtml } from "./printFlyer";
 import { CustomSelect } from "./CustomSelect";
 
@@ -10,6 +11,7 @@ const KIND_OPTIONS = [
   { value: "event", label: "Event" },
   { value: "common", label: "Common" },
 ] as const;
+
 function slugify(label: string): string {
   return label
     .toLowerCase()
@@ -19,11 +21,19 @@ function slugify(label: string): string {
     .slice(0, 64);
 }
 
+function zoneUsed(z: OpsZone): boolean {
+  return Number(z.report_count ?? 0) > 0;
+}
+
 type QrState = ZoneQr & {
   zone: { id: string; label: string; floor: string | null; kind: string };
 };
 
 type Props = { canEdit: boolean };
+
+type ConfirmKind = "disable" | "enable" | "delete";
+
+type Pending = { kind: ConfirmKind; zone: OpsZone };
 
 export function ZonesAdmin({ canEdit }: Props) {
   const [zones, setZones] = useState<OpsZone[]>([]);
@@ -36,6 +46,8 @@ export function ZonesAdmin({ canEdit }: Props) {
   const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState<QrState | null>(null);
   const [editing, setEditing] = useState<OpsZone | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [blocked, setBlocked] = useState<{ title: string; body: string } | null>(null);
 
   function flash(msg: string) {
     setToast(msg);
@@ -105,43 +117,60 @@ export function ZonesAdmin({ canEdit }: Props) {
     }
   }
 
-  async function toggleActive(z: OpsZone) {
+  function requestToggle(z: OpsZone) {
     if (!canEdit) return;
-    try {
-      await opsApi.patchZone(z.id, { active: !z.active });
-      await reload();
-      flash(z.active ? "Zone disabled" : "Zone enabled");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "update_failed");
+    if (z.active && zoneUsed(z)) {
+      setBlocked({
+        title: "Can’t disable this zone",
+        body: `“${z.label}” already has ${z.report_count} report${Number(z.report_count) === 1 ? "" : "s"}. Zones that have been used can’t be disabled or deleted.`,
+      });
+      return;
     }
+    setPending({ kind: z.active ? "disable" : "enable", zone: z });
   }
 
-  async function removeZone(z: OpsZone) {
+  function requestDelete(z: OpsZone) {
     if (!canEdit) return;
-    if (!window.confirm(`Delete zone “${z.label}”? Only unused zones can be fully deleted.`)) return;
+    if (zoneUsed(z)) {
+      setBlocked({
+        title: "Can’t delete this zone",
+        body: `“${z.label}” already has ${z.report_count} report${Number(z.report_count) === 1 ? "" : "s"}. Zones that have been used can’t be disabled or deleted.`,
+      });
+      return;
+    }
+    setPending({ kind: "delete", zone: z });
+  }
+
+  async function runPending() {
+    if (!pending || !canEdit) return;
+    const { kind: action, zone: z } = pending;
+    setBusy(true);
+    setError(null);
     try {
-      const res = await opsApi.deleteZone(z.id, false);
-      if (res.disabled) {
-        flash(res.message || "Disabled (has reports)");
-      } else {
+      if (action === "delete") {
+        await opsApi.deleteZone(z.id);
         flash("Zone deleted");
         if (qr?.zone.id === z.id) setQr(null);
+      } else {
+        await opsApi.patchZone(z.id, { active: action === "enable" });
+        flash(action === "disable" ? "Zone disabled" : "Zone enabled");
       }
+      setPending(null);
       await reload();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "delete_failed";
+      const msg = err instanceof Error ? err.message : "action_failed";
       if (msg === "zone_has_reports") {
-        const force = window.confirm(
-          "This zone has reports so it can’t be deleted. Disable it instead?",
-        );
-        if (force) {
-          await opsApi.deleteZone(z.id, true);
-          await reload();
-          flash("Zone disabled (has history)");
-        }
+        setPending(null);
+        setBlocked({
+          title: action === "delete" ? "Can’t delete this zone" : "Can’t disable this zone",
+          body: `“${z.label}” has reports on file. Used zones can’t be disabled or deleted.`,
+        });
       } else {
         setError(msg);
+        flash(`Failed: ${msg}`);
       }
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -151,7 +180,6 @@ export function ZonesAdmin({ canEdit }: Props) {
       await navigator.clipboard.writeText(qr.url);
       flash("Link copied to clipboard");
     } catch {
-      // fallback
       const ta = document.createElement("textarea");
       ta.value = qr.url;
       document.body.appendChild(ta);
@@ -207,14 +235,14 @@ export function ZonesAdmin({ canEdit }: Props) {
     };
 
     const imgs = [...doc.querySelectorAll("img")];
-    let pending = imgs.filter((img) => !img.complete).length;
-    if (pending === 0) {
+    let pendingImgs = imgs.filter((img) => !img.complete).length;
+    if (pendingImgs === 0) {
       window.setTimeout(trigger, 80);
       return;
     }
     const done = () => {
-      pending -= 1;
-      if (pending <= 0) trigger();
+      pendingImgs -= 1;
+      if (pendingImgs <= 0) trigger();
     };
     imgs.forEach((img) => {
       if (img.complete) return;
@@ -224,17 +252,57 @@ export function ZonesAdmin({ canEdit }: Props) {
     window.setTimeout(trigger, 2000);
   }
 
+  const confirmTitle =
+    pending?.kind === "delete"
+      ? "Delete this zone?"
+      : pending?.kind === "disable"
+        ? "Disable this zone?"
+        : "Enable this zone?";
+
+  const confirmBody =
+    pending?.kind === "delete"
+      ? `Permanently remove “${pending.zone.label}”? Only unused zones can be deleted. This cannot be undone.`
+      : pending?.kind === "disable"
+        ? `Turn off “${pending.zone.label}”? Guests won’t be able to open its QR link until you enable it again.`
+        : pending
+          ? `Turn “${pending.zone.label}” back on so its QR / link works again?`
+          : "";
+
   return (
     <div className="grid-2">
       {toast ? <div className="toast">{toast}</div> : null}
+      <ConfirmDialog
+        open={!!pending}
+        title={confirmTitle}
+        body={confirmBody}
+        confirmLabel={
+          pending?.kind === "delete"
+            ? "Delete zone"
+            : pending?.kind === "disable"
+              ? "Disable"
+              : "Enable"
+        }
+        tone={pending?.kind === "enable" ? "default" : "danger"}
+        busy={busy}
+        onCancel={() => !busy && setPending(null)}
+        onConfirm={() => void runPending()}
+      />
+      <AlertDialog
+        open={!!blocked}
+        title={blocked?.title ?? ""}
+        body={blocked?.body ?? ""}
+        onClose={() => setBlocked(null)}
+      />
+
       <section className="panel">
         <h2>Zones</h2>
         <p className="muted" style={{ marginBottom: "1rem" }}>
-          Create spaces, generate QR / shareable links. Guests open the link — no login.
+          Create spaces, generate QR / shareable links. Guests open the link — no login. Zones with
+          reports can’t be disabled or deleted.
         </p>
         {error ? <p className="error">{error}</p> : null}
         <div className="table-wrap">
-          <table className="table">
+          <table className="table table-hover">
             <thead>
               <tr>
                 <th>Zone</th>
@@ -244,37 +312,64 @@ export function ZonesAdmin({ canEdit }: Props) {
               </tr>
             </thead>
             <tbody>
-              {zones.map((z) => (
-                <tr key={z.id}>
-                  <td>
-                    <strong>{z.label}</strong>
-                    <div className="muted">
-                      {z.id}
-                      {z.floor ? ` · floor ${z.floor}` : ""}
-                    </div>
-                  </td>
-                  <td>{z.kind}</td>
-                  <td>{z.active ? "active" : "off"}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <button className="btn btn-ghost" type="button" onClick={() => showQr(z.id)} disabled={!z.active}>
-                      QR / link
-                    </button>
-                    {canEdit ? (
-                      <>
-                        <button className="btn btn-ghost" type="button" onClick={() => setEditing(z)}>
-                          Edit
-                        </button>
-                        <button className="btn btn-ghost" type="button" onClick={() => toggleActive(z)}>
-                          {z.active ? "Disable" : "Enable"}
-                        </button>
-                        <button className="btn btn-ghost" type="button" onClick={() => removeZone(z)}>
-                          Delete
-                        </button>
-                      </>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
+              {zones.map((z) => {
+                const used = zoneUsed(z);
+                return (
+                  <tr key={z.id}>
+                    <td>
+                      <strong>{z.label}</strong>
+                      <div className="muted">
+                        {z.id}
+                        {z.floor ? ` · floor ${z.floor}` : ""}
+                        {used ? ` · ${z.report_count} reports` : ""}
+                      </div>
+                    </td>
+                    <td>{z.kind}</td>
+                    <td>{z.active ? "active" : "off"}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      <button
+                        className="btn btn-ghost"
+                        type="button"
+                        onClick={() => showQr(z.id)}
+                        disabled={!z.active}
+                      >
+                        QR / link
+                      </button>
+                      {canEdit ? (
+                        <>
+                          <button
+                            className="btn btn-ghost"
+                            type="button"
+                            onClick={() => setEditing(z)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            type="button"
+                            onClick={() => requestToggle(z)}
+                            title={
+                              z.active && used
+                                ? "Zones with reports can’t be disabled"
+                                : undefined
+                            }
+                          >
+                            {z.active ? "Disable" : "Enable"}
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            type="button"
+                            onClick={() => requestDelete(z)}
+                            title={used ? "Zones with reports can’t be deleted" : undefined}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -386,15 +481,16 @@ export function ZonesAdmin({ canEdit }: Props) {
               </a>
             </div>
             <p className="muted qr-url-hint">
-              Print flyer uses the partnership poster layout with this zone’s location.
-              Add Zuba logos under <code>apps/web/brand/</code> if they don’t appear yet.
+              Print flyer uses the partnership poster layout with this zone’s location. Add Zuba
+              logos under <code>apps/web/brand/</code> if they don’t appear yet.
             </p>
           </section>
         ) : (
           <section className="panel">
             <h2>Share a report link</h2>
             <p className="muted">
-              Click <strong>QR / link</strong>, then Copy link or Print. Same URL works on laptop or phone.
+              Click <strong>QR / link</strong>, then Copy link or Print. Same URL works on laptop or
+              phone.
             </p>
           </section>
         )}

@@ -44,36 +44,38 @@ export function CustomSelect({
   return (
     <div className={`cselect${className ? ` ${className}` : ""}${open ? " open" : ""}`} ref={rootRef}>
       <span className="cselect-label">{label}</span>
-      <button
-        type="button"
-        className="cselect-trigger"
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listId}
-        onClick={() => !disabled && setOpen((v) => !v)}
-      >
-        <span className="cselect-value">{selected?.label ?? "—"}</span>
-        <span className="cselect-chevron" aria-hidden="true" />
-      </button>
-      {open ? (
-        <ul className="cselect-menu" role="listbox" id={listId}>
-          {options.map((o) => (
-            <li key={o.value} role="option" aria-selected={o.value === value}>
-              <button
-                type="button"
-                className={o.value === value ? "on" : ""}
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                }}
-              >
-                {o.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <div className="cselect-control">
+        <button
+          type="button"
+          className="cselect-trigger"
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => !disabled && setOpen((v) => !v)}
+        >
+          <span className="cselect-value">{selected?.label ?? "—"}</span>
+          <span className="cselect-chevron" aria-hidden="true" />
+        </button>
+        {open ? (
+          <ul className="cselect-menu" role="listbox" id={listId}>
+            {options.map((o) => (
+              <li key={o.value} role="option" aria-selected={o.value === value}>
+                <button
+                  type="button"
+                  className={o.value === value ? "on" : ""}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  {o.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </div>
   );
 }

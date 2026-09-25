@@ -353,6 +353,14 @@ a {
   border-bottom: none;
 }
 
+.table-hover tbody tr {
+  transition: background 0.12s ease;
+}
+
+.table-hover tbody tr:hover td {
+  background: var(--accent-dim, rgba(232, 93, 4, 0.08));
+}
+
 .pill {
   display: inline-block;
   padding: 0.1rem 0.4rem;
@@ -397,9 +405,58 @@ html[data-theme="dark"] .btn-primary:hover {
   background: transparent;
 }
 
+.btn-danger {
+  background: #c2410c;
+  color: #fff;
+  border-color: #c2410c;
+  font-weight: 600;
+}
+
+.btn-danger:hover {
+  opacity: 0.92;
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+}
+
+.modal-card {
+  width: min(420px, 100%);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 1.25rem 1.35rem;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
+}
+
+.modal-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.modal-card p {
+  margin: 0 0 1.15rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .login-page {
@@ -598,6 +655,13 @@ html[data-theme="dark"] .login-card {
   padding: 0.25rem;
 }
 
+.row-menu-pop-fixed {
+  position: fixed;
+  right: auto;
+  top: 0;
+  z-index: 70;
+}
+
 .row-menu-item {
   appearance: none;
   display: block;
@@ -748,6 +812,10 @@ html[data-theme="dark"] .login-card {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.cselect-control {
+  position: relative;
 }
 
 .cselect-trigger {

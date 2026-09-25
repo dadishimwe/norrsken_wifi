@@ -3,6 +3,7 @@ export {
   getZone,
   listActiveZones,
   listAllZones,
+  listAllZonesWithCounts,
   createZone,
   updateZone,
   countReportsForZone,
@@ -17,6 +18,7 @@ export {
   HASH_CHAIN_LOCK,
   type InsertReportInput,
   type PatchReportFields,
+  type ZoneWithCounts,
 } from "./reports.js";
 export { getOrCreateDailySalt, computeActorHash, purgeOldSalts } from "./salt.js";
 export {
