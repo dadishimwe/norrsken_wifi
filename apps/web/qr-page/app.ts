@@ -73,7 +73,7 @@ function locationLine(label: string, floor: string | null | undefined): string {
 }
 
 async function run(b: Bootstrap) {
-  const started = Date.now();
+  let started = Date.now();
   let zoneId = b.zone.id;
   let zoneSource: "qr" | "override" = "qr";
   let zoneLabel = b.zone.label;
@@ -83,8 +83,6 @@ async function run(b: Bootstrap) {
   let otherApp = "";
   let whenBucket = "now";
   let wifiContext = "unknown";
-  let reportId: string | null = null;
-  let editToken: string | null = null;
   let errorMsg = "";
   let phase: "form" | "done" = "form";
   let recentCount = 0;
@@ -92,6 +90,86 @@ async function run(b: Bootstrap) {
   let stepIndex = 0;
   const steps: StepId[] = ["symptoms", "when", "apps", "wifi"];
   let renderedStep: StepId | null = null;
+
+  const draftKey = `norrsken_draft_${b.zone.id}`;
+
+  function saveDraft() {
+    try {
+      sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          zoneId,
+          zoneSource,
+          zoneLabel,
+          zoneFloor,
+          symptoms: [...symptoms],
+          apps: [...apps],
+          otherApp,
+          whenBucket,
+          wifiContext,
+          stepIndex,
+          started,
+        }),
+      );
+    } catch {
+      /* ignore quota */
+    }
+  }
+
+  function clearDraft() {
+    try {
+      sessionStorage.removeItem(draftKey);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function restoreDraft() {
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (!raw) return;
+      const d = JSON.parse(raw) as {
+        zoneId?: string;
+        zoneSource?: "qr" | "override";
+        zoneLabel?: string;
+        zoneFloor?: string | null;
+        symptoms?: string[];
+        apps?: string[];
+        otherApp?: string;
+        whenBucket?: string;
+        wifiContext?: string;
+        stepIndex?: number;
+        started?: number;
+      };
+      if (d.zoneId) {
+        zoneId = d.zoneId;
+        zoneSource = d.zoneSource === "override" ? "override" : "qr";
+        zoneLabel = d.zoneLabel ?? zoneLabel;
+        zoneFloor = d.zoneFloor ?? zoneFloor;
+      }
+      if (Array.isArray(d.symptoms)) {
+        symptoms.clear();
+        d.symptoms.forEach((s) => symptoms.add(s));
+      }
+      if (Array.isArray(d.apps)) {
+        apps.clear();
+        d.apps.forEach((a) => apps.add(a));
+      }
+      if (typeof d.otherApp === "string") otherApp = d.otherApp;
+      if (typeof d.whenBucket === "string") whenBucket = d.whenBucket;
+      if (typeof d.wifiContext === "string") wifiContext = d.wifiContext;
+      if (typeof d.stepIndex === "number" && d.stepIndex >= 0 && d.stepIndex < steps.length) {
+        stepIndex = d.stepIndex;
+      }
+      if (typeof d.started === "number" && d.started > 0 && d.started <= Date.now()) {
+        started = d.started;
+      }
+    } catch {
+      clearDraft();
+    }
+  }
+
+  restoreDraft();
 
   async function waitMinFill(): Promise<number> {
     const elapsed = Date.now() - started;
@@ -236,7 +314,7 @@ async function run(b: Bootstrap) {
     if (step === "symptoms") {
       return `
         <p class="hint">Tap one or more (max 3)</p>
-        <div class="chips" data-group="symptoms">
+        <div class="chips chips-pills" data-group="symptoms">
           ${b.symptoms
             .map(
               (s) =>
@@ -261,7 +339,7 @@ async function run(b: Bootstrap) {
       const showOther = apps.has("other");
       return `
         <p class="hint">Optional — tap any that apply</p>
-        <div class="chips" data-group="apps">
+        <div class="chips chips-pills" data-group="apps">
           ${b.apps
             .map(
               (a) =>
@@ -301,6 +379,7 @@ async function run(b: Bootstrap) {
           btn.classList.add("on");
         }
         setError("");
+        saveDraft();
       });
     });
     root.querySelectorAll<HTMLButtonElement>("[data-app]").forEach((btn) => {
@@ -325,16 +404,19 @@ async function run(b: Bootstrap) {
             }
           }
         }
+        saveDraft();
       });
     });
     root.querySelector<HTMLInputElement>("#other-app")?.addEventListener("input", (e) => {
       otherApp = (e.target as HTMLInputElement).value.trim().slice(0, 80);
+      saveDraft();
     });
     root.querySelectorAll<HTMLButtonElement>("[data-when]").forEach((btn) => {
       btn.addEventListener("click", () => {
         whenBucket = btn.dataset.when!;
         root.querySelectorAll<HTMLButtonElement>("[data-when]").forEach((el) => el.classList.remove("on"));
         btn.classList.add("on");
+        saveDraft();
       });
     });
     root.querySelectorAll<HTMLButtonElement>("[data-wifi]").forEach((btn) => {
@@ -342,6 +424,7 @@ async function run(b: Bootstrap) {
         wifiContext = btn.dataset.wifi!;
         root.querySelectorAll<HTMLButtonElement>("[data-wifi]").forEach((el) => el.classList.remove("on"));
         btn.classList.add("on");
+        saveDraft();
       });
     });
     root.querySelector("[data-action='next']")?.addEventListener("click", () => void goNext());
@@ -350,6 +433,7 @@ async function run(b: Bootstrap) {
       if (stepIndex > 0) {
         stepIndex -= 1;
         setError("");
+        saveDraft();
         render();
       }
     });
@@ -397,6 +481,7 @@ async function run(b: Bootstrap) {
       zoneLabel = z?.label ?? nextId;
       zoneFloor = z?.floor ?? null;
       zoneSource = "override";
+      saveDraft();
       const labelEl = root.querySelector(".zone-label");
       if (labelEl) labelEl.textContent = locationLine(zoneLabel, zoneFloor);
       const panel = root.querySelector<HTMLElement>("#override-panel");
@@ -404,8 +489,7 @@ async function run(b: Bootstrap) {
     });
   }
 
-  async function ensureReportCreated(): Promise<boolean> {
-    if (reportId) return true;
+  async function submitReport(): Promise<boolean> {
     if (symptoms.size === 0) {
       setError("Pick at least one symptom to continue.");
       return false;
@@ -415,6 +499,7 @@ async function run(b: Bootstrap) {
     try {
       const fill_ms = await waitMinFill();
       const hp = (document.getElementById("hp") as HTMLInputElement | null)?.value ?? "";
+      const clarifiers = clarifierPayload();
       const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -423,10 +508,10 @@ async function run(b: Bootstrap) {
           zone_source: zoneSource,
           channel: "qr",
           symptoms: [...symptoms],
-          apps: [],
+          apps: [...apps],
           when_bucket: whenBucket,
           wifi_context: wifiContext,
-          clarifiers: {},
+          clarifiers,
           device_class: deviceClass(),
           fill_ms,
           session_token: sessionToken(),
@@ -435,14 +520,12 @@ async function run(b: Bootstrap) {
       });
       const data = (await res.json()) as {
         report_id?: string;
-        edit_token?: string;
         recent_count?: number;
         error?: string;
       };
       if (!res.ok) throw new Error(data.error || "save_failed");
-      reportId = data.report_id!;
-      editToken = data.edit_token!;
       recentCount = data.recent_count ?? 0;
+      clearDraft();
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save. Try again.");
@@ -450,21 +533,6 @@ async function run(b: Bootstrap) {
     } finally {
       setBusyUi(false);
     }
-  }
-
-  async function patch(body: Record<string, unknown>) {
-    if (!reportId || !editToken) return;
-    const res = await fetch(`/api/reports/${reportId}`, {
-      method: "PATCH",
-      headers: {
-        "content-type": "application/json",
-        "x-edit-token": editToken,
-      },
-      body: JSON.stringify(body),
-    });
-    const data = (await res.json()) as { recent_count?: number; error?: string };
-    if (!res.ok) throw new Error(data.error || "update_failed");
-    if (typeof data.recent_count === "number") recentCount = data.recent_count;
   }
 
   function clarifierPayload(): Record<string, string> {
@@ -478,57 +546,28 @@ async function run(b: Bootstrap) {
     setError("");
     syncOtherAppInput();
 
-    if (step === "symptoms") {
-      const ok = await ensureReportCreated();
+    if (step === "symptoms" && symptoms.size === 0) {
+      setError("Pick at least one symptom to continue.");
+      return;
+    }
+
+    // Only write to the server on the final Submit — earlier steps stay local
+    // so a mid-flow API restart can't leave orphan rows.
+    if (stepIndex >= steps.length - 1) {
+      const ok = await submitReport();
       if (!ok) return;
-      stepIndex = 1;
+      const card = root.querySelector(".step-card");
+      card?.classList.add("fade-out");
+      await new Promise((r) => setTimeout(r, 220));
+      phase = "done";
+      clearDraft();
       render();
       return;
     }
 
-    setBusyUi(true);
-    try {
-      if (step === "when") {
-        await patch({ when_bucket: whenBucket });
-      } else if (step === "apps") {
-        const c = clarifierPayload();
-        await patch({
-          apps: [...apps],
-          ...(Object.keys(c).length ? { clarifiers: c } : { clarifiers: {} }),
-        });
-      } else if (step === "wifi") {
-        await patch({ wifi_context: wifiContext });
-      }
-
-      if (stepIndex >= steps.length - 1) {
-        await finish();
-        return;
-      }
-      stepIndex += 1;
-      updateProgress();
-      render();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Update failed");
-    } finally {
-      setBusyUi(false);
-    }
-  }
-
-  async function finish() {
-    const c = clarifierPayload();
-    if (reportId) {
-      await patch({
-        symptoms: [...symptoms],
-        apps: [...apps],
-        when_bucket: whenBucket,
-        wifi_context: wifiContext,
-        clarifiers: c,
-      });
-    }
-    const card = root.querySelector(".step-card");
-    card?.classList.add("fade-out");
-    await new Promise((r) => setTimeout(r, 220));
-    phase = "done";
+    stepIndex += 1;
+    saveDraft();
+    updateProgress();
     render();
   }
 

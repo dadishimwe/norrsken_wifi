@@ -96,13 +96,15 @@ export type AnalyticsPayload = {
 };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const hasBody = init?.body != null && init.body !== "";
+  const headers: HeadersInit = {
+    ...(hasBody ? { "content-type": "application/json" } : {}),
+    ...(init?.headers ?? {}),
+  };
   const res = await fetch(path, {
     credentials: "include",
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {}),
-    },
     ...init,
+    headers,
   });
   if (res.headers.get("content-type")?.includes("text/csv")) {
     throw new Error("use downloadCsv for csv endpoints");
