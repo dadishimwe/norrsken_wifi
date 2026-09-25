@@ -20,6 +20,13 @@ interface QrWindow {
 
 type StepId = "symptoms" | "when" | "apps" | "wifi";
 
+const STEP_TITLE: Record<StepId, string> = {
+  symptoms: "What happened?",
+  when: "When?",
+  apps: "Which apps?",
+  wifi: "Which Wi‑Fi?",
+};
+
 const boot = (window as unknown as QrWindow).__BOOTSTRAP__;
 const root = document.getElementById("app")!;
 
@@ -58,11 +65,19 @@ function deviceClass(): "mobile" | "desktop" | "unknown" {
   return "unknown";
 }
 
+function locationLine(label: string, floor: string | null | undefined): string {
+  if (floor && floor.trim() && !label.toLowerCase().includes(floor.toLowerCase())) {
+    return `${floor.trim()} · ${label}`;
+  }
+  return label;
+}
+
 async function run(b: Bootstrap) {
   const started = Date.now();
   let zoneId = b.zone.id;
   let zoneSource: "qr" | "override" = "qr";
   let zoneLabel = b.zone.label;
+  let zoneFloor = b.zone.floor;
   const symptoms = new Set<string>();
   const apps = new Set<string>();
   let otherApp = "";
@@ -112,17 +127,18 @@ async function run(b: Bootstrap) {
   }
 
   function updateProgress() {
+    const step = steps[stepIndex] ?? "symptoms";
     const total = steps.length;
     const current = stepIndex + 1;
     const pct = Math.round((current / total) * 100);
-    const meta = root.querySelector(".progress-meta");
+    const title = root.querySelector(".progress-title");
+    const count = root.querySelector(".progress-step");
     const fill = root.querySelector<HTMLElement>(".progress-fill");
     const wrap = root.querySelector(".progress");
-    if (meta) {
-      meta.innerHTML = `<span>${current} / ${total}</span><span>${pct}%</span>`;
-    }
+    if (title) title.textContent = STEP_TITLE[step];
+    if (count) count.textContent = `${current} / ${total}`;
     if (fill) fill.style.width = `${pct}%`;
-    if (wrap) wrap.setAttribute("aria-label", `Step ${current} of ${total}`);
+    if (wrap) wrap.setAttribute("aria-label", `Step ${current} of ${total}: ${STEP_TITLE[step]}`);
   }
 
   function syncOtherAppInput() {
@@ -132,7 +148,12 @@ async function run(b: Bootstrap) {
 
   function render() {
     if (phase === "done") {
-      root.innerHTML = doneHtml(recentCount);
+      root.innerHTML = `
+        <div class="shell shell-done">
+          ${doneBlock(recentCount)}
+        </div>
+        ${poweredByHtml()}
+      `;
       return;
     }
 
@@ -142,64 +163,67 @@ async function run(b: Bootstrap) {
     const pct = Math.round((current / total) * 100);
     const stepChanged = renderedStep !== step;
     renderedStep = step;
+    const place = locationLine(zoneLabel, zoneFloor);
 
     root.innerHTML = `
-      <header class="header">
-        <div class="brand-row">
-          <img class="logo-norrsken" src="/qr/norrsken-logo-dark.svg" alt="Norrsken" />
-        </div>
-        <p class="eyebrow">Network feedback</p>
-        <div class="zone-row">
-          <h1 class="zone-label">${escapeHtml(zoneLabel)}</h1>
-          <button type="button" class="not-here" data-action="not-here">Not here?</button>
-        </div>
-        <p class="privacy">Anonymous. We don’t collect your name or email.</p>
-      </header>
+      <div class="shell">
+        <header class="header">
+          <div class="top-bar">
+            <img class="logo-norrsken" src="/qr/norrsken-logo-dark.svg" alt="Norrsken" />
+            <span class="eyebrow">Network feedback</span>
+          </div>
+          <div class="zone-row">
+            <h1 class="zone-label">${escapeHtml(place)}</h1>
+            <button type="button" class="not-here" data-action="not-here">Not here?</button>
+          </div>
+          <p class="privacy">Anonymous — we don’t collect your name or email.</p>
+        </header>
 
-      <div class="progress" aria-label="Step ${current} of ${total}">
-        <div class="progress-meta">
-          <span>${current} / ${total}</span>
-          <span>${pct}%</span>
+        <div class="progress" aria-label="Step ${current} of ${total}: ${STEP_TITLE[step]}">
+          <div class="progress-meta">
+            <span class="progress-title">${STEP_TITLE[step]}</span>
+            <span class="progress-step">${current} / ${total}</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
         </div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-      </div>
 
-      <input class="hp" tabindex="-1" autocomplete="off" name="website" id="hp" />
+        <input class="hp" tabindex="-1" autocomplete="off" name="website" id="hp" />
 
-      <section class="card step-card${stepChanged ? " step-enter" : ""}" id="step-card">
-        ${stepBody(step)}
-        <p class="error step-error" ${errorMsg ? "" : "hidden"}>${escapeHtml(errorMsg)}</p>
-        <div class="actions">
-          ${
-            stepIndex > 0
-              ? `<button type="button" class="btn" data-action="back" ${busy ? "disabled" : ""}>Back</button>`
-              : `<span></span>`
-          }
-          <button type="button" class="btn btn-primary" data-action="next" ${busy ? "disabled" : ""}>
-            ${busy ? "Saving…" : stepIndex === total - 1 ? "Submit ✔" : "Continue"}
-          </button>
-        </div>
-      </section>
+        <section class="card step-card${stepChanged ? " step-enter" : ""}" id="step-card">
+          ${stepBody(step)}
+          <p class="error step-error" ${errorMsg ? "" : "hidden"}>${escapeHtml(errorMsg)}</p>
+          <div class="actions">
+            ${
+              stepIndex > 0
+                ? `<button type="button" class="btn" data-action="back" ${busy ? "disabled" : ""}>Back</button>`
+                : `<span class="actions-spacer"></span>`
+            }
+            <button type="button" class="btn btn-primary" data-action="next" ${busy ? "disabled" : ""}>
+              ${busy ? "Saving…" : stepIndex === total - 1 ? "Submit ✔" : "Continue"}
+            </button>
+          </div>
+        </section>
 
-      <div id="override-panel" hidden class="card override-card">
-        <h2>Where are you?</h2>
-        <div class="cselect" id="zone-cselect" data-value="${escapeHtml(zoneId)}">
-          <button type="button" class="cselect-trigger" data-action="toggle-zone-menu" aria-haspopup="listbox" aria-expanded="false">
-            <span class="cselect-value">${escapeHtml(zoneLabel)}</span>
-            <span class="cselect-chevron" aria-hidden="true"></span>
-          </button>
-          <ul class="cselect-menu" hidden role="listbox">
-            ${b.zones
-              .map(
-                (z) =>
-                  `<li role="option"><button type="button" class="cselect-option${z.id === zoneId ? " on" : ""}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(z.label)}</button></li>`,
-              )
-              .join("")}
-          </ul>
-        </div>
-        <div class="actions">
-          <button type="button" class="btn" data-action="cancel-override">Cancel</button>
-          <button type="button" class="btn btn-primary" data-action="apply-override">Use this place</button>
+        <div id="override-panel" hidden class="card override-card">
+          <h2>Where are you?</h2>
+          <div class="cselect" id="zone-cselect" data-value="${escapeHtml(zoneId)}">
+            <button type="button" class="cselect-trigger" data-action="toggle-zone-menu" aria-haspopup="listbox" aria-expanded="false">
+              <span class="cselect-value">${escapeHtml(place)}</span>
+              <span class="cselect-chevron" aria-hidden="true"></span>
+            </button>
+            <ul class="cselect-menu" hidden role="listbox">
+              ${b.zones
+                .map(
+                  (z) =>
+                    `<li role="option"><button type="button" class="cselect-option${z.id === zoneId ? " on" : ""}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(locationLine(z.label, z.floor))}</button></li>`,
+                )
+                .join("")}
+            </ul>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn" data-action="cancel-override">Cancel</button>
+            <button type="button" class="btn btn-primary" data-action="apply-override">Use this place</button>
+          </div>
         </div>
       </div>
 
@@ -211,7 +235,6 @@ async function run(b: Bootstrap) {
   function stepBody(step: StepId): string {
     if (step === "symptoms") {
       return `
-        <h2>What happened?</h2>
         <p class="hint">Tap one or more (max 3)</p>
         <div class="chips" data-group="symptoms">
           ${b.symptoms
@@ -224,7 +247,7 @@ async function run(b: Bootstrap) {
     }
     if (step === "when") {
       return `
-        <h2>When?</h2>
+        <p class="hint">Pick the closest time</p>
         <div class="chips" data-group="when">
           ${b.when
             .map(
@@ -237,7 +260,6 @@ async function run(b: Bootstrap) {
     if (step === "apps") {
       const showOther = apps.has("other");
       return `
-        <h2>Which apps?</h2>
         <p class="hint">Optional — tap any that apply</p>
         <div class="chips" data-group="apps">
           ${b.apps
@@ -256,7 +278,7 @@ async function run(b: Bootstrap) {
         </div>`;
     }
     return `
-      <h2>Which Wi‑Fi?</h2>
+      <p class="hint">Which network were you on?</p>
       <div class="chips" data-group="wifi">
         ${b.ssids
           .map(
@@ -311,14 +333,14 @@ async function run(b: Bootstrap) {
     root.querySelectorAll<HTMLButtonElement>("[data-when]").forEach((btn) => {
       btn.addEventListener("click", () => {
         whenBucket = btn.dataset.when!;
-        root.querySelectorAll<HTMLButtonElement>("[data-when]").forEach((b) => b.classList.remove("on"));
+        root.querySelectorAll<HTMLButtonElement>("[data-when]").forEach((el) => el.classList.remove("on"));
         btn.classList.add("on");
       });
     });
     root.querySelectorAll<HTMLButtonElement>("[data-wifi]").forEach((btn) => {
       btn.addEventListener("click", () => {
         wifiContext = btn.dataset.wifi!;
-        root.querySelectorAll<HTMLButtonElement>("[data-wifi]").forEach((b) => b.classList.remove("on"));
+        root.querySelectorAll<HTMLButtonElement>("[data-wifi]").forEach((el) => el.classList.remove("on"));
         btn.classList.add("on");
       });
     });
@@ -356,9 +378,10 @@ async function run(b: Bootstrap) {
         const trigger = wrap?.querySelector<HTMLButtonElement>(".cselect-trigger");
         const valueEl = wrap?.querySelector(".cselect-value");
         const id = btn.dataset.zoneOpt!;
+        const z = b.zones.find((x) => x.id === id);
         if (wrap) wrap.dataset.value = id;
-        if (valueEl) valueEl.textContent = b.zones.find((z) => z.id === id)?.label ?? id;
-        root.querySelectorAll<HTMLButtonElement>("[data-zone-opt]").forEach((b) => b.classList.remove("on"));
+        if (valueEl) valueEl.textContent = locationLine(z?.label ?? id, z?.floor ?? null);
+        root.querySelectorAll<HTMLButtonElement>("[data-zone-opt]").forEach((el) => el.classList.remove("on"));
         btn.classList.add("on");
         if (menu) menu.hidden = true;
         wrap?.classList.remove("open");
@@ -369,11 +392,13 @@ async function run(b: Bootstrap) {
       const wrap = root.querySelector<HTMLElement>("#zone-cselect");
       const nextId = wrap?.dataset.value;
       if (!nextId) return;
+      const z = b.zones.find((x) => x.id === nextId);
       zoneId = nextId;
-      zoneLabel = b.zones.find((z) => z.id === zoneId)?.label ?? zoneId;
+      zoneLabel = z?.label ?? nextId;
+      zoneFloor = z?.floor ?? null;
       zoneSource = "override";
       const labelEl = root.querySelector(".zone-label");
-      if (labelEl) labelEl.textContent = zoneLabel;
+      if (labelEl) labelEl.textContent = locationLine(zoneLabel, zoneFloor);
       const panel = root.querySelector<HTMLElement>("#override-panel");
       if (panel) panel.hidden = true;
     });
@@ -518,7 +543,7 @@ function poweredByHtml(): string {
     </footer>`;
 }
 
-function doneHtml(recentCount: number): string {
+function doneBlock(recentCount: number): string {
   const status =
     recentCount >= 3
       ? `${recentCount} others reported this area in the last 10 min.`
@@ -541,7 +566,5 @@ function doneHtml(recentCount: number): string {
       <h1>Thanks — this helps everyone.</h1>
       <p>Your report was saved. You can close this page.</p>
       <p class="status">${escapeHtml(status)}</p>
-    </div>
-    ${poweredByHtml()}
-  `;
+    </div>`;
 }

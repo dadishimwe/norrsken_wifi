@@ -2,7 +2,14 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { opsApi, type OpsZone, type ZoneQr } from "./api";
 import { buildPrintFlyerHtml } from "./printFlyer";
+import { CustomSelect } from "./CustomSelect";
 
+const KIND_OPTIONS = [
+  { value: "area", label: "Area / desks" },
+  { value: "booth", label: "Booth" },
+  { value: "event", label: "Event" },
+  { value: "common", label: "Common" },
+] as const;
 function slugify(label: string): string {
   return label
     .toLowerCase()
@@ -296,16 +303,13 @@ export function ZonesAdmin({ canEdit }: Props) {
                     />
                   </div>
                   <div className="field">
-                    <label>Kind</label>
-                    <select
+                    <CustomSelect
+                      label="Kind"
                       value={editing.kind}
-                      onChange={(e) => setEditing({ ...editing, kind: e.target.value })}
-                    >
-                      <option value="area">Area</option>
-                      <option value="booth">Booth</option>
-                      <option value="event">Event</option>
-                      <option value="common">Common</option>
-                    </select>
+                      onChange={(v) => setEditing({ ...editing, kind: v })}
+                      options={[...KIND_OPTIONS]}
+                      disabled={busy}
+                    />
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -348,17 +352,13 @@ export function ZonesAdmin({ canEdit }: Props) {
                   </div>
                 </div>
                 <div className="field">
-                  <label htmlFor="zone-kind">Kind</label>
-                  <select
-                    id="zone-kind"
+                  <CustomSelect
+                    label="Kind"
                     value={kind}
-                    onChange={(e) => setKind(e.target.value as typeof kind)}
-                  >
-                    <option value="area">Area / desks</option>
-                    <option value="booth">Booth</option>
-                    <option value="event">Event</option>
-                    <option value="common">Common</option>
-                  </select>
+                    onChange={(v) => setKind(v as typeof kind)}
+                    options={[...KIND_OPTIONS]}
+                    disabled={busy}
+                  />
                 </div>
                 <button className="btn btn-primary" type="submit" disabled={busy}>
                   {busy ? "Creating…" : "Create zone"}

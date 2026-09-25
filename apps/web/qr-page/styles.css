@@ -11,6 +11,10 @@
   --ok: #2d8a55;
   --radius: 14px;
   --font: "DM Sans", system-ui, -apple-system, sans-serif;
+  /* spacing system */
+  --s1: 8px;
+  --s2: 16px;
+  --s3: 24px;
 }
 
 * {
@@ -30,8 +34,23 @@ body {
 .app {
   max-width: 440px;
   margin: 0 auto;
-  padding: 1.25rem 1.1rem 2.5rem;
   min-height: 100dvh;
+  min-height: 100svh;
+  padding: var(--s2);
+  padding-bottom: calc(var(--s2) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+}
+
+.shell {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.shell-done {
+  justify-content: center;
 }
 
 .boot {
@@ -41,100 +60,101 @@ body {
 }
 
 .header {
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--s2);
 }
 
-.brand-row {
+.top-bar {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  margin-bottom: 0.85rem;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
 }
 
 .logo-norrsken {
-  height: 16px;
+  height: 14px;
   width: auto;
   display: block;
-  opacity: 0.92;
-}
-
-.logo-zuba {
-  height: 18px;
-  width: auto;
-  display: block;
-}
-
-.powered-by {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  margin-top: 1.75rem;
-  padding-top: 1rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--dim);
-  letter-spacing: 0.02em;
-}
-
-.powered-by .logo-zuba {
-  height: 48px;
-  opacity: 0.95;
+  opacity: 0.85;
 }
 
 .eyebrow {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--dim);
-  margin: 0 0 0.35rem;
-}
-
-.zone-label {
-  font-size: 1.55rem;
-  font-weight: 700;
-  line-height: 1.2;
-  margin: 0 0 0.5rem;
+  font-weight: 600;
+  margin: 0;
+  text-align: right;
 }
 
 .zone-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--s2);
+}
+
+.zone-label {
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: -0.02em;
+  flex: 1;
+  min-width: 0;
 }
 
 .not-here {
   appearance: none;
   border: none;
   background: transparent;
-  color: var(--accent);
+  color: var(--muted);
   font: inherit;
   font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.25rem 0;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 0.2rem 0;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.not-here:hover {
+  color: var(--text);
 }
 
 .privacy {
-  font-size: 0.8rem;
-  color: var(--muted);
-  margin: 0.35rem 0 0;
-  line-height: 1.4;
+  font-size: 0.75rem;
+  color: var(--dim);
+  margin: var(--s1) 0 0;
+  line-height: 1.35;
+  font-weight: 400;
 }
 
 .progress {
-  margin: 0 0 0.85rem;
+  margin: 0 0 var(--s2);
 }
 
 .progress-meta {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-bottom: var(--s1);
+}
+
+.progress-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.progress-step {
   font-size: 0.78rem;
   color: var(--dim);
   font-weight: 600;
-  margin-bottom: 0.35rem;
 }
 
 .progress-bar {
@@ -160,59 +180,38 @@ body {
 }
 
 .override-card {
-  margin-top: 0.85rem;
-}
-
-@media (max-width: 420px) {
-  .app {
-    padding: 1rem 0.85rem 2rem;
-  }
-
-  .zone-label {
-    font-size: 1.3rem;
-  }
-
-  .chip {
-    font-size: 0.85rem;
-    padding: 0.65rem 0.75rem;
-  }
-
-  .actions {
-    flex-direction: column-reverse;
-  }
-
-  .actions .btn,
-  .actions span {
-    width: 100%;
-  }
-}
-
-@media (min-width: 640px) {
-  .app {
-    max-width: 480px;
-    padding-top: 2rem;
-  }
+  margin-top: var(--s2);
 }
 
 .card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1rem 1.1rem;
-  margin-bottom: 0.85rem;
-  animation: rise 0.35s ease both;
+  padding: var(--s2);
+  margin-bottom: 0;
 }
 
 .card h2 {
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--s2);
   font-size: 0.95rem;
   font-weight: 650;
 }
 
+.hint {
+  font-size: 0.8rem;
+  color: var(--dim);
+  margin: 0 0 var(--s2);
+}
+
+.hint-inline {
+  font-weight: 400;
+  color: var(--dim);
+}
+
 .chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s1);
 }
 
 .chip {
@@ -223,22 +222,25 @@ body {
   font: inherit;
   font-size: 0.9rem;
   font-weight: 500;
-  padding: 0.7rem 0.85rem;
-  border-radius: 999px;
+  padding: 0.75rem var(--s2);
+  border-radius: 12px;
   cursor: pointer;
-  min-height: 44px;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  min-height: 48px;
+  width: 100%;
+  text-align: center;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
 .chip:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .chip.on {
-  background: var(--accent-soft);
+  background: var(--accent);
   border-color: var(--accent);
-  color: var(--accent);
+  color: #fff;
+  font-weight: 600;
 }
 
 .chip.ghost {
@@ -246,21 +248,8 @@ body {
   color: var(--muted);
 }
 
-.hint {
-  font-size: 0.78rem;
-  color: var(--dim);
-  margin: 0.55rem 0 0;
-}
-
-.hint-inline {
-  font-weight: 400;
-  color: var(--dim);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
 .other-app {
-  margin-top: 0.85rem;
+  margin-top: var(--s3);
 }
 
 .other-app[hidden] {
@@ -271,7 +260,7 @@ body {
   display: block;
   font-size: 0.85rem;
   font-weight: 600;
-  margin-bottom: 0.4rem;
+  margin-bottom: var(--s1);
 }
 
 .text-input {
@@ -291,27 +280,16 @@ body {
   outline-offset: 1px;
 }
 
-.select {
-  width: 100%;
-  font: inherit;
-  font-size: 1rem;
-  padding: 0.75rem 0.85rem;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--text);
-}
-
 .cselect {
   position: relative;
-  margin-top: 0.25rem;
+  margin-top: var(--s1);
 }
 
 .cselect-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--s1);
   width: 100%;
   min-height: 48px;
   padding: 0.75rem 0.85rem;
@@ -351,7 +329,7 @@ body {
   left: 0;
   right: 0;
   margin: 0;
-  padding: 0.35rem;
+  padding: var(--s1);
   list-style: none;
   background: #fff;
   border: 1px solid var(--border);
@@ -388,8 +366,12 @@ body {
 
 .actions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.85rem;
+  gap: var(--s1);
+  margin-top: var(--s3);
+}
+
+.actions-spacer {
+  flex: 1;
 }
 
 .btn {
@@ -425,7 +407,7 @@ body {
 .error {
   color: var(--danger);
   font-size: 0.85rem;
-  margin: 0.5rem 0 0;
+  margin: var(--s2) 0 0;
 }
 
 .hp {
@@ -436,17 +418,41 @@ body {
   width: 0;
 }
 
+.powered-by {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1);
+  margin-top: auto;
+  padding-top: var(--s3);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--dim);
+  letter-spacing: 0.02em;
+}
+
+.powered-by .logo-zuba {
+  height: 36px;
+  width: auto;
+  display: block;
+  opacity: 0.95;
+}
+
 /* Done / success */
 .done {
   text-align: center;
-  padding: 2.5rem 0.5rem 1rem;
+  padding: var(--s3) var(--s1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .done-burst {
   position: relative;
   width: 88px;
   height: 88px;
-  margin: 0 auto 1.25rem;
+  margin: 0 0 var(--s3);
 }
 
 .done-circle {
@@ -514,7 +520,7 @@ body {
 
 .done h1 {
   font-size: 1.45rem;
-  margin: 0 0 0.45rem;
+  margin: 0 0 12px;
   animation: rise 0.45s 0.15s ease both;
 }
 
@@ -526,11 +532,46 @@ body {
 }
 
 .done .status {
-  margin-top: 1rem;
+  margin-top: 32px;
   font-size: 0.9rem;
   color: var(--accent);
   font-weight: 600;
   animation: rise 0.45s 0.35s ease both;
+}
+
+@media (max-width: 420px) {
+  .app {
+    padding: var(--s2) 12px calc(var(--s2) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .zone-label {
+    font-size: 1.4rem;
+  }
+
+  .chips {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .actions .btn,
+  .actions-spacer {
+    width: 100%;
+    flex: none;
+  }
+
+  .actions-spacer {
+    display: none;
+  }
+}
+
+@media (min-width: 640px) {
+  .app {
+    max-width: 480px;
+    padding-top: var(--s3);
+  }
 }
 
 @keyframes rise {
