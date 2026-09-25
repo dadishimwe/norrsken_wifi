@@ -549,6 +549,86 @@ html[data-theme="dark"] .login-card {
   min-width: 960px;
 }
 
+.table .col-actions {
+  width: 2rem;
+  padding-left: 0.15rem;
+  padding-right: 0.15rem;
+  text-align: right;
+  vertical-align: middle;
+}
+
+.row-menu {
+  position: relative;
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+.row-menu-trigger {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 1.1rem;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.row-menu-trigger:hover,
+.row-menu-trigger[aria-expanded="true"] {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.row-menu-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 2px);
+  min-width: 7.5rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 20;
+  padding: 0.25rem;
+}
+
+.row-menu-item {
+  appearance: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.row-menu-item:hover {
+  background: var(--bg);
+}
+
+.row-menu-item.danger {
+  color: #c2410c;
+}
+
+.row-menu-item.danger:hover {
+  background: rgba(232, 93, 4, 0.1);
+}
+
+.row-busy {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .cell-clamp {
   max-width: 160px;
   overflow: hidden;

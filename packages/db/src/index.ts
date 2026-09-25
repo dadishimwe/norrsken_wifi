@@ -11,6 +11,7 @@ export {
   countRecentReportsInZone,
   insertReport,
   getReport,
+  deleteReport,
   updateReport,
   getLatestRowHash,
   HASH_CHAIN_LOCK,

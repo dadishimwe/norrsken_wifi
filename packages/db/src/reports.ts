@@ -184,6 +184,11 @@ export async function getReport(db: Pool, id: string): Promise<ReportRow | null>
   return rows[0] ?? null;
 }
 
+export async function deleteReport(db: Pool, id: string): Promise<boolean> {
+  const { rowCount } = await db.query(`delete from report where id = $1`, [id]);
+  return (rowCount ?? 0) > 0;
+}
+
 export type PatchReportFields = {
   symptoms?: string[];
   apps?: string[];

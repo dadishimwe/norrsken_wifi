@@ -5,6 +5,7 @@ import {
   createOpsUser,
   createZone,
   countReportsForZone,
+  deleteReport,
   deleteZone,
   getOpsUserByUsername,
   getZone,
@@ -404,6 +405,20 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         total_pages: Math.max(1, Math.ceil(total / limit)),
         reports: rowsRes.rows,
       };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.delete("/api/ops/reports/:id", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireAdmin(me);
+      const { id } = req.params as { id: string };
+      const deleted = await deleteReport(db, id);
+      if (!deleted) return reply.code(404).send({ error: "not_found" });
+      return { ok: true, deleted: id };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       throw err;

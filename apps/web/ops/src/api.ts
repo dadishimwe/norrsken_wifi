@@ -136,6 +136,8 @@ export const opsApi = {
   dashboard: () => api<DashboardPayload>("/api/ops/dashboard"),
   reports: (page = 1, limit = 25) =>
     api<ReportsPage>(`/api/ops/reports?page=${page}&limit=${limit}`),
+  deleteReport: (id: string) =>
+    api<{ ok: boolean; deleted: string }>(`/api/ops/reports/${id}`, { method: "DELETE" }),
   analytics: (opts?: { days?: number; channel?: string; zone_id?: string | null }) => {
     const sp = new URLSearchParams();
     if (opts?.days) sp.set("days", String(opts.days));

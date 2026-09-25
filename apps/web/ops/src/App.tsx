@@ -91,7 +91,7 @@ export function App() {
         ) : tab === "graphs" ? (
           <GraphsView />
         ) : (
-          <DashboardView />
+          <DashboardView canEdit={user.role === "admin"} />
         )}
       </main>
 

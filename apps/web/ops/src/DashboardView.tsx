@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { downloadCsv, opsApi, type DashboardPayload, type ReportsPage } from "./api";
 import { formatClarifiersDisplay, labelApp, labelSymptom } from "./labels";
 
@@ -23,11 +23,65 @@ function clarifierText(c: Record<string, unknown> | undefined): string {
   return formatClarifiersDisplay(c) || "—";
 }
 
-export function DashboardView() {
+function RowMenu({ onDelete }: { onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="row-menu" ref={ref}>
+      <button
+        type="button"
+        className="row-menu-trigger"
+        aria-label="Row actions"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        ⋮
+      </button>
+      {open ? (
+        <div className="row-menu-pop" role="menu">
+          <button
+            type="button"
+            className="row-menu-item danger"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type Props = { canEdit?: boolean };
+
+export function DashboardView({ canEdit = false }: Props) {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [reportsPage, setReportsPage] = useState<ReportsPage | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +103,21 @@ export function DashboardView() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [page]);
+  }, [page, tick]);
+
+  async function deleteReport(id: string, zoneLabel: string) {
+    if (!canEdit) return;
+    if (!window.confirm(`Delete this report from ${zoneLabel}? This cannot be undone.`)) return;
+    setBusyId(id);
+    try {
+      await opsApi.deleteReport(id);
+      setTick((t) => t + 1);
+    } catch {
+      window.alert("Could not delete report.");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;
@@ -172,11 +240,12 @@ export function DashboardView() {
                     <th>Device</th>
                     <th>Channel</th>
                     <th>Weight</th>
+                    {canEdit ? <th className="col-actions" aria-label="Actions" /> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id}>
+                    <tr key={r.id} className={busyId === r.id ? "row-busy" : undefined}>
                       <td title={r.created_at}>{timeAgo(r.created_at)}</td>
                       <td>{r.zone_label}</td>
                       <td>{r.zone_source ?? "—"}</td>
@@ -202,6 +271,11 @@ export function DashboardView() {
                       <td>{r.device_class ?? "—"}</td>
                       <td>{r.channel}</td>
                       <td>{fmtNum(r.weight, 1)}</td>
+                      {canEdit ? (
+                        <td className="col-actions">
+                          <RowMenu onDelete={() => void deleteReport(r.id, r.zone_label)} />
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
