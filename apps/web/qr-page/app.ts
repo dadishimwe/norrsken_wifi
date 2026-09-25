@@ -8,6 +8,7 @@ type Bootstrap = {
   symptoms: Chip[];
   apps: Chip[];
   when: Chip[];
+  devices: Chip[];
   ssids: Chip[];
   min_fill_ms: number;
 };
@@ -18,11 +19,12 @@ interface QrWindow {
   __BOOTSTRAP__: Bootstrap | BootstrapError | null;
 }
 
-type StepId = "symptoms" | "when" | "apps" | "wifi";
+type StepId = "symptoms" | "when" | "device" | "apps" | "wifi";
 
 const STEP_TITLE: Record<StepId, string> = {
   symptoms: "What happened?",
   when: "When?",
+  device: "Which device?",
   apps: "Which apps?",
   wifi: "Which Wi‑Fi?",
 };
@@ -58,10 +60,14 @@ function sessionToken(): string {
   return t;
 }
 
-function deviceClass(): "mobile" | "desktop" | "unknown" {
+/** Soft pre-select from UA — user can still change it. */
+function guessDevice(): string {
   const ua = navigator.userAgent;
-  if (/Mobi|Android|iPhone|iPad/i.test(ua)) return "mobile";
-  if (/Windows|Macintosh|Linux/i.test(ua)) return "desktop";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iphone";
+  if (/Android/i.test(ua)) return "android";
+  if (/Windows/i.test(ua)) return "windows";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "mac";
+  if (/Linux/i.test(ua)) return "linux";
   return "unknown";
 }
 
@@ -82,16 +88,17 @@ async function run(b: Bootstrap) {
   const apps = new Set<string>();
   let otherApp = "";
   let whenBucket = "now";
+  let deviceClass = guessDevice();
   let wifiContext = "unknown";
   let errorMsg = "";
   let phase: "form" | "done" = "form";
   let recentCount = 0;
   let busy = false;
   let stepIndex = 0;
-  const steps: StepId[] = ["symptoms", "when", "apps", "wifi"];
+  const steps: StepId[] = ["symptoms", "when", "device", "apps", "wifi"];
   let renderedStep: StepId | null = null;
 
-  const draftKey = `norrsken_draft_${b.zone.id}`;
+  const draftKey = `norrsken_draft_v2_${b.zone.id}`;
 
   function saveDraft() {
     try {
@@ -106,6 +113,7 @@ async function run(b: Bootstrap) {
           apps: [...apps],
           otherApp,
           whenBucket,
+          deviceClass,
           wifiContext,
           stepIndex,
           started,
@@ -137,6 +145,7 @@ async function run(b: Bootstrap) {
         apps?: string[];
         otherApp?: string;
         whenBucket?: string;
+        deviceClass?: string;
         wifiContext?: string;
         stepIndex?: number;
         started?: number;
@@ -157,6 +166,7 @@ async function run(b: Bootstrap) {
       }
       if (typeof d.otherApp === "string") otherApp = d.otherApp;
       if (typeof d.whenBucket === "string") whenBucket = d.whenBucket;
+      if (typeof d.deviceClass === "string") deviceClass = d.deviceClass;
       if (typeof d.wifiContext === "string") wifiContext = d.wifiContext;
       if (typeof d.stepIndex === "number" && d.stepIndex >= 0 && d.stepIndex < steps.length) {
         stepIndex = d.stepIndex;
@@ -335,6 +345,28 @@ async function run(b: Bootstrap) {
             .join("")}
         </div>`;
     }
+    if (step === "device") {
+      const devices = b.devices?.length
+        ? b.devices
+        : [
+            { id: "iphone", label: "iPhone" },
+            { id: "android", label: "Android phone" },
+            { id: "windows", label: "Windows laptop" },
+            { id: "mac", label: "Mac" },
+            { id: "linux", label: "Linux laptop" },
+            { id: "unknown", label: "Not sure" },
+          ];
+      return `
+        <p class="hint">Where did you notice the problem?</p>
+        <div class="chips chips-pills" data-group="device">
+          ${devices
+            .map(
+              (d) =>
+                `<button type="button" class="chip${deviceClass === d.id ? " on" : ""}" data-device="${escapeHtml(d.id)}">${escapeHtml(d.label)}</button>`,
+            )
+            .join("")}
+        </div>`;
+    }
     if (step === "apps") {
       const showOther = apps.has("other");
       return `
@@ -416,6 +448,15 @@ async function run(b: Bootstrap) {
         whenBucket = btn.dataset.when!;
         root.querySelectorAll<HTMLButtonElement>("[data-when]").forEach((el) => el.classList.remove("on"));
         btn.classList.add("on");
+        saveDraft();
+      });
+    });
+    root.querySelectorAll<HTMLButtonElement>("[data-device]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        deviceClass = btn.dataset.device!;
+        root.querySelectorAll<HTMLButtonElement>("[data-device]").forEach((el) => el.classList.remove("on"));
+        btn.classList.add("on");
+        setError("");
         saveDraft();
       });
     });
@@ -512,7 +553,7 @@ async function run(b: Bootstrap) {
           when_bucket: whenBucket,
           wifi_context: wifiContext,
           clarifiers,
-          device_class: deviceClass(),
+          device_class: deviceClass,
           fill_ms,
           session_token: sessionToken(),
           website: hp,
@@ -548,6 +589,10 @@ async function run(b: Bootstrap) {
 
     if (step === "symptoms" && symptoms.size === 0) {
       setError("Pick at least one symptom to continue.");
+      return;
+    }
+    if (step === "device" && !deviceClass) {
+      setError("Pick which device you were on.");
       return;
     }
 

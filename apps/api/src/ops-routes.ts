@@ -34,6 +34,42 @@ function labelList(ids: unknown, labels: Record<string, string>): string {
   return ids.map((id) => labels[String(id)] ?? String(id).replaceAll("_", " ")).join("|");
 }
 
+function labelAppsForExport(
+  apps: unknown,
+  clarifiers: unknown,
+  labels: Record<string, string>,
+): string {
+  if (!Array.isArray(apps)) return "";
+  const other =
+    clarifiers &&
+    typeof clarifiers === "object" &&
+    typeof (clarifiers as { other_app?: unknown }).other_app === "string"
+      ? String((clarifiers as { other_app: string }).other_app).trim()
+      : "";
+  return apps
+    .map((id) => {
+      const key = String(id);
+      if (key === "other") return other || labels.other || "Other";
+      return labels[key] ?? key.replaceAll("_", " ");
+    })
+    .join("|");
+}
+
+function labelDevice(v: unknown): string {
+  const id = String(v ?? "");
+  const map: Record<string, string> = {
+    iphone: "iPhone",
+    android: "Android phone",
+    windows: "Windows laptop",
+    mac: "Mac",
+    linux: "Linux laptop",
+    unknown: "Not sure",
+    mobile: "Phone",
+    desktop: "Laptop / desktop",
+  };
+  return map[id] ?? (id ? id.replaceAll("_", " ") : "");
+}
+
 const COOKIE = "norrsken_ops_session";
 
 declare module "fastify" {
@@ -455,9 +491,11 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
               let s = "";
               if (v == null) s = "";
               else if (h === "symptoms") s = labelList(v, SYMPTOM_LABELS as Record<string, string>);
-              else if (h === "apps") s = labelList(v, APP_LABELS as Record<string, string>);
+              else if (h === "apps")
+                s = labelAppsForExport(v, r.clarifiers, APP_LABELS as Record<string, string>);
               else if (h === "clarifiers" && typeof v === "object")
                 s = formatClarifiersDisplay(v as Record<string, unknown>);
+              else if (h === "device_class") s = labelDevice(v);
               else if (Array.isArray(v)) s = v.join("|");
               else if (typeof v === "object") s = JSON.stringify(v);
               else s = String(v);

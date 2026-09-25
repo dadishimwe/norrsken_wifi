@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { downloadCsv, opsApi, type DashboardPayload, type ReportsPage } from "./api";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { formatClarifiersDisplay, labelApp, labelSymptom } from "./labels";
+import { formatClarifiersDisplay, labelAppEntry, labelDevice, labelSymptom } from "./labels";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -328,7 +328,7 @@ export function DashboardView({ canEdit = false }: Props) {
                         {r.apps.length
                           ? r.apps.map((a) => (
                               <span className="pill" key={a}>
-                                {labelApp(a)}
+                                {labelAppEntry(a, r.clarifiers)}
                               </span>
                             ))
                           : "—"}
@@ -336,7 +336,7 @@ export function DashboardView({ canEdit = false }: Props) {
                       <td>{r.when_bucket}</td>
                       <td>{r.wifi_context}</td>
                       <td className="cell-clamp">{clarifierText(r.clarifiers)}</td>
-                      <td>{r.device_class ?? "—"}</td>
+                      <td>{labelDevice(r.device_class)}</td>
                       <td>{r.channel}</td>
                       <td>{fmtNum(r.weight, 1)}</td>
                       {canEdit ? (

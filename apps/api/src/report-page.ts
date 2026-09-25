@@ -7,6 +7,8 @@ import { getZone, listActiveZones } from "@norrsken/db";
 import {
   APP_LABELS,
   APPS,
+  DEVICE_LABELS,
+  DEVICE_OPTIONS,
   SYMPTOM_LABELS,
   SYMPTOMS,
   WHEN_BUCKETS,
@@ -109,6 +111,7 @@ export async function registerReportPageRoutes(
       symptoms: SYMPTOMS.map((id) => ({ id, label: SYMPTOM_LABELS[id] })),
       apps: APPS.map((id) => ({ id, label: APP_LABELS[id] })),
       when: WHEN_BUCKETS.map((id) => ({ id, label: WHEN_LABELS[id] })),
+      devices: DEVICE_OPTIONS.map((id) => ({ id, label: DEVICE_LABELS[id] })),
       ssids: loadSsids(),
       min_fill_ms: env.MIN_FILL_MS,
     };

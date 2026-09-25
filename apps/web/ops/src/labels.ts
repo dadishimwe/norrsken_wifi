@@ -24,6 +24,17 @@ export const APP_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+export const DEVICE_LABELS: Record<string, string> = {
+  iphone: "iPhone",
+  android: "Android phone",
+  windows: "Windows laptop",
+  mac: "Mac",
+  linux: "Linux laptop",
+  unknown: "Not sure",
+  mobile: "Phone",
+  desktop: "Laptop / desktop",
+};
+
 const CLARIFIER_FIELDS: Record<string, string> = {
   same_as_incident: "Same as current issue",
   choppy_type: "What was choppy",
@@ -31,7 +42,6 @@ const CLARIFIER_FIELDS: Record<string, string> = {
   connect_detail: "What they saw",
   slow_scope: "Slow scope",
   wifi_context: "Wi‑Fi",
-  other_app: "Other app",
 };
 
 const CLARIFIER_VALUES: Record<string, Record<string, string>> = {
@@ -68,6 +78,26 @@ export function labelApp(id: string): string {
   return APP_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
+/** Resolve app pills — prefer custom Other text when present. */
+export function labelAppEntry(
+  id: string,
+  clarifiers?: Record<string, unknown> | null,
+): string {
+  if (id === "other") {
+    const custom =
+      clarifiers && typeof clarifiers.other_app === "string"
+        ? clarifiers.other_app.trim()
+        : "";
+    return custom || "Other";
+  }
+  return labelApp(id);
+}
+
+export function labelDevice(id: string | null | undefined): string {
+  if (!id) return "—";
+  return DEVICE_LABELS[id] ?? id.replaceAll("_", " ");
+}
+
 export function formatClarifiersDisplay(
   clarifiers: Record<string, unknown> | null | undefined,
 ): string {
@@ -75,11 +105,9 @@ export function formatClarifiersDisplay(
   const parts: string[] = [];
   for (const [key, raw] of Object.entries(clarifiers)) {
     if (raw == null || raw === "") continue;
+    // other_app is shown in the Apps column instead
+    if (key === "other_app") continue;
     const value = String(raw);
-    if (key === "other_app") {
-      parts.push(`Other app: ${value}`);
-      continue;
-    }
     const field = CLARIFIER_FIELDS[key] ?? key.replaceAll("_", " ");
     const pretty = CLARIFIER_VALUES[key]?.[value] ?? value.replaceAll("_", " ");
     parts.push(`${field}: ${pretty}`);

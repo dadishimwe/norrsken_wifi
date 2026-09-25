@@ -33,8 +33,22 @@ export type Channel = (typeof CHANNELS)[number];
 export const ZONE_SOURCES = ["qr", "selected", "remembered", "override"] as const;
 export type ZoneSource = (typeof ZONE_SOURCES)[number];
 
-export const DEVICE_CLASSES = ["mobile", "desktop", "unknown"] as const;
+export const DEVICE_CLASSES = [
+  "iphone",
+  "android",
+  "windows",
+  "mac",
+  "linux",
+  "unknown",
+  /** Legacy auto-detect values (still accepted on read) */
+  "mobile",
+  "desktop",
+] as const;
 export type DeviceClass = (typeof DEVICE_CLASSES)[number];
+
+/** Choices shown on the guest form (friendly labels). */
+export const DEVICE_OPTIONS = ["iphone", "android", "windows", "mac", "linux", "unknown"] as const;
+export type DeviceOption = (typeof DEVICE_OPTIONS)[number];
 
 export const ZONE_KINDS = ["area", "booth", "event", "common"] as const;
 export type ZoneKind = (typeof ZONE_KINDS)[number];
@@ -76,4 +90,13 @@ export const WHEN_LABELS: Record<WhenBucket, string> = {
   now: "Happening now",
   recent: "Just ended (<15 min)",
   earlier: "Earlier today",
+};
+
+export const DEVICE_LABELS: Record<DeviceOption, string> = {
+  iphone: "iPhone",
+  android: "Android phone",
+  windows: "Windows laptop",
+  mac: "Mac",
+  linux: "Linux laptop",
+  unknown: "Not sure",
 };

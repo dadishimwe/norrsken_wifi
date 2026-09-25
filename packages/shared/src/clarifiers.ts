@@ -138,7 +138,7 @@ export function formatClarifiersDisplay(
     if (raw == null || raw === "") continue;
     const value = String(raw);
     if (key === "other_app") {
-      parts.push(`Other app: ${value}`);
+      // Shown in the Apps column instead (custom name or "Other")
       continue;
     }
     const def = CLARIFIERS.find((c) => c.id === key);
