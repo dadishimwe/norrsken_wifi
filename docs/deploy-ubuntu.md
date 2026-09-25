@@ -85,7 +85,81 @@ From a browser on the LAN:
 
 Port **8080** is Caddy (preferred). Port **3000** hits the API directly if you need it for debugging.
 
-## 5. Firewall (optional)
+## 5. Survive reboots (Docker + Compose)
+
+Containers are configured with `restart: unless-stopped`. Also enable Docker itself on boot:
+
+```bash
+sudo systemctl enable --now docker
+cd /opt/norrsken
+sudo docker compose up -d
+```
+
+After a host reboot, `postgres`, `api`, and `caddy` should come back automatically. Check with:
+
+```bash
+docker compose ps
+```
+
+## 6. Static IP on the Ubuntu VM (netplan)
+
+Keep the address you already use (example: `192.168.1.52`) so QR links and ops bookmarks don’t break.
+
+1. Find the interface name and current gateway/DNS:
+
+```bash
+ip -br a
+ip route | grep default
+resolvectl status | head -20
+```
+
+Typical interface names: `eth0`, `ens18` (Proxmox), `enp0s3`.
+
+2. Edit netplan (file name may vary):
+
+```bash
+ls /etc/netplan/
+sudo nano /etc/netplan/00-installer-config.yaml
+# or: 50-cloud-init.yaml / 01-netcfg.yaml
+```
+
+Example (adjust interface, address, gateway, DNS to match your LAN):
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    ens18:
+      dhcp4: false
+      addresses:
+        - 192.168.1.52/24
+      routes:
+        - to: default
+          via: 192.168.1.1
+      nameservers:
+        addresses: [1.1.1.1, 8.8.8.8]
+```
+
+3. Apply:
+
+```bash
+sudo netplan try    # 120s rollback if you lose connectivity — safest
+# or: sudo netplan apply
+```
+
+4. From Proxmox, also reserve `192.168.1.52` in your router DHCP (or set the VM NIC to that IP) so nothing else claims it.
+
+5. Update `.env` `PUBLIC_BASE_URL` if needed:
+
+```env
+PUBLIC_BASE_URL=http://192.168.1.52:8080
+```
+
+Then recreate QR links from the Zones tab (old printed QRs still work if they already pointed at this IP).
+
+**Proxmox tip:** you can set a static IP inside the guest (above) *or* via the Proxmox cloud-init / network config for the VM. Prefer one place so they don’t fight.
+
+## 7. Firewall (optional)
 
 ```bash
 sudo ufw allow OpenSSH
@@ -95,7 +169,7 @@ sudo ufw enable
 
 For HTTPS later, point a hostname at the VM and update `deploy/Caddyfile` for automatic TLS.
 
-## 6. Day-2 operations
+## 8. Day-2 operations
 
 ```bash
 # Update
