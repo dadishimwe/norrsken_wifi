@@ -17,7 +17,7 @@ pnpm --filter @norrsken/api dev
 - **Ops dashboard:** http://localhost:3000/ops/ → **Zones** tab → QR / link → Open report page
 - **Member/guest report:** that same `/r/...` URL in any browser (no login). QR is optional.
 
-Set `PUBLIC_BASE_URL` in `.env` to your VM address (e.g. `http://192.168.1.50:8080`) so generated links/QRs point at the right host.
+Set `PUBLIC_BASE_URL` in `.env` to your VM address (e.g. `http://192.168.1.13:8080`) so generated links/QRs point at the right host.
 
 ## QR stickers / test links
 

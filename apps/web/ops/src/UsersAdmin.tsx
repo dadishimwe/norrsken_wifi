@@ -1,6 +1,12 @@
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { opsApi, type OpsUser } from "./api";
+import { CustomSelect } from "./CustomSelect";
+
+const ROLE_OPTIONS = [
+  { value: "viewer", label: "Viewer — dashboard only" },
+  { value: "admin", label: "Admin — manage users & zones" },
+] as const;
 
 export function UsersAdmin() {
   const [users, setUsers] = useState<OpsUser[]>([]);
@@ -111,15 +117,13 @@ export function UsersAdmin() {
               />
             </div>
             <div className="field">
-              <label htmlFor="new-role">Role</label>
-              <select
-                id="new-role"
+              <CustomSelect
+                label="Role"
                 value={role}
-                onChange={(e) => setRole(e.target.value as "admin" | "viewer")}
-              >
-                <option value="viewer">Viewer</option>
-                <option value="admin">Admin</option>
-              </select>
+                onChange={(v) => setRole(v as "admin" | "viewer")}
+                options={[...ROLE_OPTIONS]}
+                disabled={busy}
+              />
             </div>
           </div>
           <button className="btn btn-primary" type="submit" disabled={busy}>

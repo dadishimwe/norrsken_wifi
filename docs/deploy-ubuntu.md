@@ -103,7 +103,7 @@ docker compose ps
 
 ## 6. Static IP on the Ubuntu VM (netplan)
 
-Keep the address you already use (example: `192.168.1.52`) so QR links and ops bookmarks don’t break.
+Keep the address you already use (example: `192.168.1.13`) so QR links and ops bookmarks don’t break.
 
 1. Find the interface name and current gateway/DNS:
 
@@ -132,7 +132,7 @@ network:
     ens18:
       dhcp4: false
       addresses:
-        - 192.168.1.52/24
+        - 192.168.1.13/24
       routes:
         - to: default
           via: 192.168.1.1
@@ -147,12 +147,12 @@ sudo netplan try    # 120s rollback if you lose connectivity — safest
 # or: sudo netplan apply
 ```
 
-4. From Proxmox, also reserve `192.168.1.52` in your router DHCP (or set the VM NIC to that IP) so nothing else claims it.
+4. From Proxmox, also reserve `192.168.1.13` in your router DHCP (or set the VM NIC to that IP) so nothing else claims it.
 
 5. Update `.env` `PUBLIC_BASE_URL` if needed:
 
 ```env
-PUBLIC_BASE_URL=http://192.168.1.52:8080
+PUBLIC_BASE_URL=http://192.168.1.13:8080
 ```
 
 Then recreate QR links from the Zones tab (old printed QRs still work if they already pointed at this IP).
