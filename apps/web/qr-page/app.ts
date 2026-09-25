@@ -49,15 +49,76 @@ function escapeHtml(s: string): string {
 }
 
 function sessionToken(): string {
+  // localStorage so the same browser keeps one anonymous reporter id across
+  // refresh / tab close — pairs with server rate limits (1 per zone / 5 min).
   const key = "norrsken_qr_session";
-  let t = sessionStorage.getItem(key);
+  let t = localStorage.getItem(key) ?? sessionStorage.getItem(key);
   if (!t || t.length < 16) {
     const bytes = new Uint8Array(24);
     crypto.getRandomValues(bytes);
     t = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  try {
+    localStorage.setItem(key, t);
+  } catch {
     sessionStorage.setItem(key, t);
   }
   return t;
+}
+
+const DONE_TTL_MS = 5 * 60 * 1000; // match zone rate window
+
+function doneStorageKey(zoneId: string): string {
+  return `norrsken_done_${zoneId}`;
+}
+
+function readDone(zoneId: string): { at: number; recentCount: number } | null {
+  try {
+    const raw = localStorage.getItem(doneStorageKey(zoneId)) ?? sessionStorage.getItem(doneStorageKey(zoneId));
+    if (!raw) return null;
+    const d = JSON.parse(raw) as { at?: number; recentCount?: number };
+    if (typeof d.at !== "number" || Date.now() - d.at > DONE_TTL_MS) {
+      clearDone(zoneId);
+      return null;
+    }
+    return { at: d.at, recentCount: typeof d.recentCount === "number" ? d.recentCount : 0 };
+  } catch {
+    return null;
+  }
+}
+
+function markDone(zoneId: string, recentCount: number) {
+  const payload = JSON.stringify({ at: Date.now(), recentCount });
+  try {
+    localStorage.setItem(doneStorageKey(zoneId), payload);
+  } catch {
+    sessionStorage.setItem(doneStorageKey(zoneId), payload);
+  }
+}
+
+function clearDone(zoneId: string) {
+  try {
+    localStorage.removeItem(doneStorageKey(zoneId));
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.removeItem(doneStorageKey(zoneId));
+  } catch {
+    /* ignore */
+  }
+}
+
+function friendlySubmitError(code: string): string {
+  if (code === "rate_limited_zone") {
+    return "You already sent a report for this area a moment ago. Thanks — no need to send another.";
+  }
+  if (code === "rate_limited_day") {
+    return "You've reached today's report limit. Thanks for helping — try again tomorrow if needed.";
+  }
+  if (code === "too_fast") return "That was a bit quick — please take a second and try again.";
+  if (code === "unknown_zone") return "This place isn't accepting reports right now.";
+  return code;
 }
 
 /** Soft pre-select from UA — user can still change it. */
@@ -93,6 +154,7 @@ async function run(b: Bootstrap) {
   let errorMsg = "";
   let phase: "form" | "done" = "form";
   let recentCount = 0;
+  let alreadySubmitted = false;
   let busy = false;
   let stepIndex = 0;
   const steps: StepId[] = ["symptoms", "when", "device", "apps", "wifi"];
@@ -181,6 +243,18 @@ async function run(b: Bootstrap) {
 
   restoreDraft();
 
+  // After draft restore: if this browser already submitted for the current zone
+  // within the rate window, skip the form (server still enforces limits).
+  {
+    const prior = readDone(zoneId);
+    if (prior) {
+      phase = "done";
+      recentCount = prior.recentCount;
+      alreadySubmitted = true;
+      clearDraft();
+    }
+  }
+
   async function waitMinFill(): Promise<number> {
     const elapsed = Date.now() - started;
     if (elapsed < b.min_fill_ms) {
@@ -238,7 +312,7 @@ async function run(b: Bootstrap) {
     if (phase === "done") {
       root.innerHTML = `
         <div class="shell shell-done">
-          ${doneBlock(recentCount)}
+          ${doneBlock(recentCount, alreadySubmitted)}
         </div>
         ${poweredByHtml()}
       `;
@@ -522,6 +596,16 @@ async function run(b: Bootstrap) {
       zoneLabel = z?.label ?? nextId;
       zoneFloor = z?.floor ?? null;
       zoneSource = "override";
+      // Switching place: if they already reported *this* zone recently, show thanks instead
+      const priorHere = readDone(zoneId);
+      if (priorHere) {
+        phase = "done";
+        recentCount = priorHere.recentCount;
+        alreadySubmitted = true;
+        clearDraft();
+        render();
+        return;
+      }
       saveDraft();
       const labelEl = root.querySelector(".zone-label");
       if (labelEl) labelEl.textContent = locationLine(zoneLabel, zoneFloor);
@@ -533,6 +617,16 @@ async function run(b: Bootstrap) {
   async function submitReport(): Promise<boolean> {
     if (symptoms.size === 0) {
       setError("Pick at least one symptom to continue.");
+      return false;
+    }
+    // Client already-done guard (server still enforces rate limits)
+    const priorHere = readDone(zoneId);
+    if (priorHere) {
+      recentCount = priorHere.recentCount;
+      alreadySubmitted = true;
+      phase = "done";
+      clearDraft();
+      render();
       return false;
     }
     setBusyUi(true);
@@ -564,8 +658,21 @@ async function run(b: Bootstrap) {
         recent_count?: number;
         error?: string;
       };
-      if (!res.ok) throw new Error(data.error || "save_failed");
+      if (!res.ok) {
+        const code = data.error || "save_failed";
+        if (code === "rate_limited_zone") {
+          markDone(zoneId, recentCount);
+          alreadySubmitted = true;
+          phase = "done";
+          clearDraft();
+          render();
+          return false;
+        }
+        throw new Error(friendlySubmitError(code));
+      }
       recentCount = data.recent_count ?? 0;
+      markDone(zoneId, recentCount);
+      alreadySubmitted = false;
       clearDraft();
       return true;
     } catch (e) {
@@ -627,11 +734,15 @@ function poweredByHtml(): string {
     </footer>`;
 }
 
-function doneBlock(recentCount: number): string {
+function doneBlock(recentCount: number, already = false): string {
   const status =
     recentCount >= 3
       ? `${recentCount} others reported this area in the last 10 min.`
       : "Network Ops is on it.";
+  const title = already ? "Report already sent" : "Thanks — this helps everyone.";
+  const body = already
+    ? "You already reported this area a moment ago. No need to send another — you can close this page."
+    : "Your report was saved. You can close this page.";
   return `
     <div class="done">
       <div class="done-burst" aria-hidden="true">
@@ -647,8 +758,8 @@ function doneBlock(recentCount: number): string {
           </svg>
         </div>
       </div>
-      <h1>Thanks — this helps everyone.</h1>
-      <p>Your report was saved. You can close this page.</p>
+      <h1>${escapeHtml(title)}</h1>
+      <p>${escapeHtml(body)}</p>
       <p class="status">${escapeHtml(status)}</p>
     </div>`;
 }
