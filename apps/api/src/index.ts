@@ -10,6 +10,7 @@ import { registerRoutes } from "./routes.js";
 import { registerOpsRoutes } from "./ops-routes.js";
 import { registerReportPageRoutes } from "./report-page.js";
 import { ensureBootstrapAdmin } from "./bootstrap-admin.js";
+import { startSlack } from "./slack/start.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,11 +86,14 @@ export async function buildApp() {
   }
 
   let boss: Awaited<ReturnType<typeof startJobs>> | null = null;
+  let stopSlack: (() => Promise<void>) | null = null;
   if (env.NODE_ENV !== "test") {
     boss = await startJobs(db, env);
+    stopSlack = await startSlack(app, db, env);
   }
 
   const shutdown = async () => {
+    if (stopSlack) await stopSlack();
     if (boss) await boss.stop();
     await app.close();
     await db.end();

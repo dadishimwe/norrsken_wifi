@@ -12,6 +12,12 @@ const envSchema = z.object({
   RATE_REPORTS_PER_DAY: z.coerce.number().default(5),
   MIN_FILL_MS: z.coerce.number().default(1500),
   REPORT_RETENTION_MONTHS: z.coerce.number().default(24),
+  SLACK_BOT_TOKEN: z.string().optional(),
+  SLACK_SIGNING_SECRET: z.string().optional(),
+  /** Socket Mode (xapp-) — required when Slack cannot reach this host */
+  SLACK_APP_TOKEN: z.string().optional(),
+  SLACK_OPS_CHANNEL: z.string().optional(),
+  SLACK_STATUS_CHANNEL: z.string().optional(),
   SLACK_REMEMBER_LAST_ZONE: z
     .string()
     .optional()

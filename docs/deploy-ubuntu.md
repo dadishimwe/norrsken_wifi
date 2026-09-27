@@ -169,7 +169,26 @@ sudo ufw enable
 
 For HTTPS later, point a hostname at the VM and update `deploy/Caddyfile` for automatic TLS.
 
-## 8. Day-2 operations
+## 8. Slack (optional, Socket Mode)
+
+The VM is on a private IP, so Slack cannot POST to it. Use **Socket Mode** (`SLACK_APP_TOKEN`) from `slack-app-manifest.yaml`.
+
+1. Create a Slack app from the manifest at api.slack.com.
+2. Install it to the workspace and copy the bot token (`xoxb-`) and app-level token (`xapp-`, scope `connections:write`).
+3. Put them in `/opt/norrsken/.env`:
+
+```env
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_APP_TOKEN=xapp-...
+SLACK_SIGNING_SECRET=...
+SLACK_REMEMBER_LAST_ZONE=true
+```
+
+4. `sudo docker compose up -d --build`. Logs should include `slack socket mode connected`.
+
+`/wifi`, the global shortcut, and the App Home **Report a problem** button open the same tap flow. Typed DMs are ignored. Slack user IDs are hashed with the daily salt and never stored.
+
+## 9. Day-2 operations
 
 ```bash
 # Update
