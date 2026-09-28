@@ -16,6 +16,11 @@ export function UsersAdmin() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"admin" | "viewer">("viewer");
   const [busy, setBusy] = useState(false);
+  const [resetUser, setResetUser] = useState<OpsUser | null>(null);
+  const [nextPassword, setNextPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   async function reload() {
     const { users: list } = await opsApi.users();
@@ -25,6 +30,15 @@ export function UsersAdmin() {
   useEffect(() => {
     reload().catch(() => setError("Could not load users (admin only)."));
   }, []);
+
+  useEffect(() => {
+    if (!resetUser) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !busy) closeReset();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [resetUser, busy]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -59,23 +73,108 @@ export function UsersAdmin() {
     }
   }
 
-  async function resetPassword(u: OpsUser) {
-    const next = window.prompt(`New password for ${u.username} (min 12 chars)`);
-    if (!next) return;
-    if (next.length < 12) {
-      setError("Password must be at least 12 characters.");
+  function openReset(u: OpsUser) {
+    setResetUser(u);
+    setNextPassword("");
+    setConfirmPassword("");
+    setResetError(null);
+  }
+
+  function closeReset() {
+    setResetUser(null);
+    setNextPassword("");
+    setConfirmPassword("");
+    setResetError(null);
+  }
+
+  async function resetPassword(e: FormEvent) {
+    e.preventDefault();
+    if (!resetUser) return;
+    if (nextPassword.length < 12) {
+      setResetError("Password must be at least 12 characters.");
       return;
     }
+    if (nextPassword !== confirmPassword) {
+      setResetError("Passwords do not match.");
+      return;
+    }
+    setBusy(true);
+    setResetError(null);
     try {
-      await opsApi.patchUser(u.id, { password: next });
+      await opsApi.patchUser(resetUser.id, { password: nextPassword });
+      const name = resetUser.username;
+      closeReset();
+      setToast(`Password updated for @${name}`);
+      window.setTimeout(() => setToast(null), 2200);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "update_failed");
+      setResetError(err instanceof Error ? err.message : "update_failed");
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <div className="grid-2">
+      {toast ? <div className="toast">{toast}</div> : null}
+      {resetUser ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={() => {
+            if (!busy) closeReset();
+          }}
+        >
+          <form
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-title"
+            onMouseDown={(e) => e.stopPropagation()}
+            onSubmit={(e) => void resetPassword(e)}
+          >
+            <h3 id="reset-title">Reset password</h3>
+            <p>
+              Set a new password for @{resetUser.username}. They will use it the next time they sign
+              in.
+            </p>
+            {resetError ? <p className="error">{resetError}</p> : null}
+            <div className="field">
+              <label htmlFor="reset-password">New password</label>
+              <input
+                id="reset-password"
+                type="password"
+                autoComplete="new-password"
+                value={nextPassword}
+                onChange={(e) => setNextPassword(e.target.value)}
+                minLength={12}
+                required
+                autoFocus
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="reset-confirm">Confirm password</label>
+              <input
+                id="reset-confirm"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                minLength={12}
+                required
+              />
+            </div>
+            <div className="modal-actions">
+              <button className="btn" type="button" onClick={() => !busy && closeReset()} disabled={busy}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" type="submit" disabled={busy}>
+                {busy ? "Saving…" : "Update password"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
       <section className="panel">
         <h2>Create account</h2>
         <p className="muted" style={{ marginBottom: "1rem" }}>
@@ -153,7 +252,7 @@ export function UsersAdmin() {
                 <td>{u.role}</td>
                 <td>{u.active === false ? "disabled" : "active"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  <button className="btn btn-ghost" type="button" onClick={() => resetPassword(u)}>
+                  <button className="btn btn-ghost" type="button" onClick={() => openReset(u)}>
                     Reset pw
                   </button>{" "}
                   <button className="btn btn-ghost" type="button" onClick={() => toggleActive(u)}>
