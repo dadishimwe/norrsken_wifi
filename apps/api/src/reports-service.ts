@@ -20,6 +20,7 @@ import {
 import {
   UNIVERSAL_ZONE_ID,
   browserFromUserAgent,
+  deviceFromUserAgent,
   createReportSchema,
   patchReportSchema,
   pickClarifiers,
@@ -99,10 +100,11 @@ export async function createReport(
   if (!parsed.success) {
     throw new HttpError(400, parsed.error.issues.map((i) => i.message).join("; "));
   }
+  const fromQr = parsed.data.channel === "qr";
+  const browser = fromQr ? browserFromUserAgent(userAgent) : null;
   const input: CreateReportInput = {
     ...parsed.data,
-    device_class:
-      parsed.data.channel === "qr" ? browserFromUserAgent(userAgent) : parsed.data.device_class,
+    device_class: fromQr ? deviceFromUserAgent(userAgent) : parsed.data.device_class,
   };
 
   if (input.website !== undefined && input.website.length > 0) {
@@ -180,9 +182,9 @@ export async function createReport(
       insert into report (
         id, created_at, channel, zone_id, zone_source, symptoms, apps, when_bucket,
         occurred_at, wifi_context, clarifiers, device_class, fill_ms, actor_hash,
-        weight, prev_hash, row_hash
+        weight, prev_hash, row_hash, browser
       ) values (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18
       )
       returning id
       `,
@@ -204,6 +206,7 @@ export async function createReport(
         weight,
         prevHash,
         rowHash,
+        browser,
       ],
     );
     if (!rows[0]) throw new Error("insert failed");

@@ -39,6 +39,7 @@ export const WHEN_LABELS: Record<string, string> = {
 
 export const DEVICE_LABELS: Record<string, string> = {
   iphone: "iPhone",
+  ipad: "iPad",
   android: "Android phone",
   windows: "Windows laptop",
   mac: "Mac",
@@ -143,9 +144,26 @@ export function labelAppEntry(id: string, clarifiers?: unknown): string {
   return labelApp(id);
 }
 
+const BROWSER_IDS = new Set(["chrome", "safari", "firefox", "edge", "opera", "samsung"]);
+
 export function labelDevice(id: string | null | undefined): string {
   if (!id) return "—";
   return DEVICE_LABELS[id] ?? id.replaceAll("_", " ");
+}
+
+export function labelLocation(zoneLabel: string | null | undefined): string {
+  const t = zoneLabel?.trim();
+  return t || "—";
+}
+
+export function labelBrowser(id: string | null | undefined): string {
+  if (!id || id === "unknown" || !BROWSER_IDS.has(id)) return "—";
+  return labelDevice(id);
+}
+
+export function labelDeviceType(id: string | null | undefined): string {
+  if (!id || BROWSER_IDS.has(id)) return "—";
+  return labelDevice(id);
 }
 
 export function formatClarifiersDisplay(clarifiers: unknown): string {

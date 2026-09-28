@@ -5,7 +5,9 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import {
   formatClarifiersDisplay,
   labelAppEntry,
-  labelDevice,
+  labelBrowser,
+  labelDeviceType,
+  labelLocation,
   labelSymptom,
   labelWhen,
 } from "./labels";
@@ -312,6 +314,8 @@ export function DashboardView({ canEdit = false }: Props) {
                     <th title="Extra answers, including a note and the name typed for another app">
                       Clarifiers
                     </th>
+                    <th>Location</th>
+                    <th>Device</th>
                     <th>Browser</th>
                     {canEdit ? <th className="col-actions" aria-label="Actions" /> : null}
                   </tr>
@@ -338,7 +342,9 @@ export function DashboardView({ canEdit = false }: Props) {
                       </td>
                       <td>{labelWhen(r.when_bucket, r.occurred_at)}</td>
                       <td className="cell-clamp">{clarifierText(r.clarifiers)}</td>
-                      <td>{labelDevice(r.device_class)}</td>
+                      <td>{labelLocation(r.zone_label)}</td>
+                      <td>{labelDeviceType(r.device_class)}</td>
+                      <td>{labelBrowser(r.browser)}</td>
                       {canEdit ? (
                         <td className="col-actions">
                           <RowMenu

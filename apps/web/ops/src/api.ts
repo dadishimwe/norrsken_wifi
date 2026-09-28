@@ -39,6 +39,7 @@ export type ReportRow = {
   wifi_context: string;
   clarifiers?: Record<string, unknown>;
   device_class?: string | null;
+  browser?: string | null;
   fill_ms?: number | null;
   weight: number;
   incident_id?: string | null;

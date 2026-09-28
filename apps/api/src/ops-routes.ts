@@ -27,6 +27,7 @@ import {
   UNIVERSAL_ZONE_ID,
   ZONE_KINDS,
   formatClarifiersDisplay,
+  isBrowserId,
 } from "@norrsken/shared";
 import type { Env } from "./env.js";
 import { HttpError } from "./reports-service.js";
@@ -72,6 +73,7 @@ function labelDevice(v: unknown): string {
   const id = String(v ?? "");
   const map: Record<string, string> = {
     iphone: "iPhone",
+    ipad: "iPad",
     android: "Android phone",
     windows: "Windows laptop",
     mac: "Mac",
@@ -87,6 +89,18 @@ function labelDevice(v: unknown): string {
     samsung: "Samsung Internet",
   };
   return map[id] ?? (id ? id.replaceAll("_", " ") : "");
+}
+
+function labelBrowser(v: unknown): string {
+  const id = String(v ?? "");
+  if (!id || id === "unknown" || !isBrowserId(id)) return "";
+  return labelDevice(id);
+}
+
+function labelDeviceType(v: unknown): string {
+  const id = String(v ?? "");
+  if (!id || isBrowserId(id)) return "";
+  return labelDevice(id);
 }
 
 const COOKIE = "norrsken_ops_session";
@@ -532,33 +546,37 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
     try {
       await requireOps(req, reply, db);
       const { rows } = await db.query(`select * from v_reports_full order by created_at desc limit 5000`);
-      const header = [
-        ["id", "id"],
-        ["created_at", "created_at"],
-        ["symptoms", "symptoms"],
-        ["apps", "apps"],
-        ["when_bucket", "when_bucket"],
-        ["occurred_at", "occurred_at"],
-        ["clarifiers", "clarifiers"],
-        ["device_class", "browser"],
-        ["fill_ms", "fill_ms"],
-        ["incident_id", "incident_id"],
-      ] as const;
-      const lines = [header.map(([, title]) => title).join(",")];
+      type CsvCol = { title: string; field: string; kind?: "device" | "browser" };
+      const columns: CsvCol[] = [
+        { title: "id", field: "id" },
+        { title: "created_at", field: "created_at" },
+        { title: "symptoms", field: "symptoms" },
+        { title: "apps", field: "apps" },
+        { title: "when_bucket", field: "when_bucket" },
+        { title: "occurred_at", field: "occurred_at" },
+        { title: "location", field: "zone_label" },
+        { title: "device", field: "device_class", kind: "device" },
+        { title: "browser", field: "browser", kind: "browser" },
+        { title: "clarifiers", field: "clarifiers" },
+        { title: "fill_ms", field: "fill_ms" },
+        { title: "incident_id", field: "incident_id" },
+      ];
+      const lines = [columns.map((c) => c.title).join(",")];
       for (const r of rows as Record<string, unknown>[]) {
         lines.push(
-          header
-            .map(([h]) => {
-              const v = r[h];
+          columns
+            .map((col) => {
+              const v = r[col.field];
               let s = "";
-              if (v == null) s = "";
-              else if (h === "symptoms") s = labelList(v, SYMPTOM_LABELS as Record<string, string>);
-              else if (h === "apps")
+              if (col.kind === "device") s = labelDeviceType(v);
+              else if (col.kind === "browser") s = labelBrowser(v);
+              else if (v == null) s = "";
+              else if (col.field === "symptoms") s = labelList(v, SYMPTOM_LABELS as Record<string, string>);
+              else if (col.field === "apps")
                 s = labelAppsForExport(v, r.clarifiers, APP_LABELS as Record<string, string>);
-              else if (h === "when_bucket") s = labelWhenBucket(v);
-              else if (h === "clarifiers" && typeof v === "object")
+              else if (col.field === "when_bucket") s = labelWhenBucket(v);
+              else if (col.field === "clarifiers" && typeof v === "object")
                 s = formatClarifiersDisplay(v as Record<string, unknown>);
-              else if (h === "device_class") s = labelDevice(v);
               else if (Array.isArray(v)) s = v.join("|");
               else if (typeof v === "object") s = JSON.stringify(v);
               else s = String(v);

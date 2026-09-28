@@ -138,7 +138,7 @@ function zoneChip(z: Zone, zoneId: string): string {
   return `<button type="button" class="chip${on}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(locationLine(z.label, z.floor))}</button>`;
 }
 
-/** Reception and Ground first, then classrooms. Classroom 2 levels stay in one group. */
+/** Reception and Ground first, classrooms next, Not sure last. */
 function zonePicker(places: Zone[], zoneId: string): string {
   const used = new Set<string>();
   const byId = new Map(places.map((z) => [z.id, z]));
@@ -151,19 +151,19 @@ function zonePicker(places: Zone[], zoneId: string): string {
     });
   const classroom2 = places.filter((z) => /^c2l\d+$/.test(z.id));
   classroom2.forEach((z) => used.add(z.id));
-  const sections: { title: string | null; zones: Zone[] }[] = [
-    { title: null, zones: take(["reception", "ground", "c1"]) },
-    { title: classroom2.length ? "Classroom 2" : null, zones: classroom2 },
-    { title: null, zones: take(["c3", "c4", "c5"]) },
-    { title: null, zones: places.filter((z) => !used.has(z.id)) },
-  ].filter((section) => section.zones.length > 0);
+  const rows: Zone[][] = [
+    take(["reception", "ground", "c1"]),
+    classroom2,
+    take(["c3", "c4", "c5"]),
+    places.filter((z) => !used.has(z.id) && z.id !== "not-sure"),
+    take(["not-sure"]),
+  ].filter((row) => row.length > 0);
 
-  return `<div class="zone-groups">${sections
-    .map((section) => {
-      const chips = `<div class="chips chips-pills">${section.zones.map((z) => zoneChip(z, zoneId)).join("")}</div>`;
-      if (!section.title) return chips;
-      return `<div class="zone-group"><p class="zone-group-label">${escapeHtml(section.title)}</p>${chips}</div>`;
-    })
+  return `<div class="zone-groups">${rows
+    .map(
+      (row) =>
+        `<div class="chips chips-pills">${row.map((z) => zoneChip(z, zoneId)).join("")}</div>`,
+    )
     .join("")}</div>`;
 }
 

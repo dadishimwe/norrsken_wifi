@@ -12,6 +12,7 @@ export const ZONES = [
   { id: "c3", label: "C3", floor: null, kind: "classroom", sort: 90 },
   { id: "c4", label: "C4", floor: null, kind: "classroom", sort: 100 },
   { id: "c5", label: "C5", floor: null, kind: "classroom", sort: 110 },
+  { id: "not-sure", label: "Not sure", floor: null, kind: "common", sort: 120 },
 ] as const;
 
 /** Placeholder zones from the first seed. Removed when unused; turned off when a report still points at them. */

@@ -1,4 +1,4 @@
-import { BROWSER_IDS, type BrowserId } from "./enums.js";
+import { BROWSER_IDS, type BrowserId, type DeviceClass } from "./enums.js";
 
 /**
  * Best-effort browser name from a User-Agent.
@@ -18,4 +18,19 @@ export function browserFromUserAgent(userAgent: string | undefined): BrowserId |
 
 export function isBrowserId(id: string): id is BrowserId {
   return (BROWSER_IDS as readonly string[]).includes(id);
+}
+
+/** Phone, tablet, or computer from the same User-Agent. iPhone is checked before Mac. */
+export function deviceFromUserAgent(userAgent: string | undefined): DeviceClass {
+  const ua = userAgent ?? "";
+  if (!ua) return "unknown";
+  if (/iPhone|iPod/.test(ua)) return "iphone";
+  if (/iPad/.test(ua)) return "ipad";
+  if (/Android/.test(ua)) return "android";
+  if (/Windows/.test(ua)) return "windows";
+  if (/Macintosh|Mac OS X/.test(ua)) return "mac";
+  if (/CrOS/.test(ua)) return "desktop";
+  if (/Linux/.test(ua)) return "linux";
+  if (/Mobile/.test(ua)) return "mobile";
+  return "unknown";
 }

@@ -39,6 +39,7 @@ export type BrowserId = (typeof BROWSER_IDS)[number];
 
 export const DEVICE_CLASSES = [
   "iphone",
+  "ipad",
   "android",
   "windows",
   "mac",
