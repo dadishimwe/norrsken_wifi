@@ -12,6 +12,7 @@ import {
   SYMPTOM_LABELS,
   SYMPTOMS,
   WHEN_BUCKETS,
+  UNIVERSAL_ZONE_ID,
   WHEN_LABELS,
   loadPublicKeys,
   verifyZoneToken,
@@ -107,7 +108,9 @@ export async function registerReportPageRoutes(
     const bootstrap = {
       ok: true as const,
       zone: { id: zone.id, label: zone.label, floor: zone.floor },
-      zones: zones.map((z) => ({ id: z.id, label: z.label, floor: z.floor })),
+      zones: zones
+        .filter((z) => z.id !== UNIVERSAL_ZONE_ID)
+        .map((z) => ({ id: z.id, label: z.label, floor: z.floor })),
       symptoms: SYMPTOMS.map((id) => ({ id, label: SYMPTOM_LABELS[id] })),
       apps: APPS.map((id) => ({ id, label: APP_LABELS[id] })),
       when: WHEN_BUCKETS.map((id) => ({ id, label: WHEN_LABELS[id] })),

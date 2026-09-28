@@ -200,4 +200,10 @@ export const opsApi = {
         zone: { id: string; label: string; floor: string | null; kind: string };
       }
     >(`/api/ops/zones/${id}/qr`),
+  reportQr: () =>
+    api<
+      ZoneQr & {
+        zone: { id: string; label: string; floor: string | null; kind: string };
+      }
+    >("/api/ops/qr"),
 };

@@ -121,7 +121,9 @@ export function GraphsView() {
 
   const zoneOptions = [
     { value: "", label: "All zones" },
-    ...(data.zones_options ?? []).map((z) => ({ value: z.id, label: z.label })),
+    ...(data.zones_options ?? [])
+      .filter((z) => z.id !== "house")
+      .map((z) => ({ value: z.id, label: z.label })),
   ];
 
   return (

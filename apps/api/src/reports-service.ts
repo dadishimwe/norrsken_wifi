@@ -18,6 +18,7 @@ import {
   zoneHasOpenIncident,
 } from "@norrsken/db";
 import {
+  UNIVERSAL_ZONE_ID,
   createReportSchema,
   patchReportSchema,
   pickClarifiers,
@@ -106,6 +107,7 @@ export async function createReport(
     throw new HttpError(400, "too_fast");
   }
 
+  if (input.zone_id === UNIVERSAL_ZONE_ID) throw new HttpError(400, "pick_zone");
   const zone = await getZone(db, input.zone_id);
   if (!zone || !zone.active) throw new HttpError(400, "unknown_zone");
 

@@ -1,4 +1,5 @@
 export const ZONES = [
+  { id: "house", label: "Norrsken House", floor: null, kind: "common", sort: 0 },
   { id: "l1-reception", label: "Level 1 · Reception", floor: "1", kind: "common", sort: 10 },
   { id: "l1-cafe", label: "Level 1 · Café", floor: "1", kind: "common", sort: 20 },
   { id: "l1-event", label: "Level 1 · Event space", floor: "1", kind: "event", sort: 30 },

@@ -23,9 +23,6 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   const base = assetBase.endsWith("/") ? assetBase : `${assetBase}/`;
   const norrsken = `${base}norrsken-logo-dark.svg`;
   const zuba = `${base}zuba-logo-on-light.png`;
-  const locationBits = [qr.zone.label];
-  if (qr.zone.floor) locationBits.push(`Floor ${qr.zone.floor}`);
-  const locationLine = locationBits.join(" · ");
 
   // Zuba orange + Norrsken charcoal/black
   const orange = "#E85D04";
@@ -36,7 +33,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
-<title>Print · ${esc(qr.zone.label)}</title>
+<title>Print · Wi-Fi report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -120,24 +117,6 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     display: block;
     background: #fff;
     border-radius: 4px;
-  }
-  .location {
-    grid-column: 1;
-    grid-row: 2;
-    margin: 0;
-    text-align: center;
-    font-size: 13px;
-    font-weight: 700;
-    color: ${navy};
-  }
-  .location span {
-    display: block;
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: ${orange};
-    margin-bottom: 2px;
   }
   .steps {
     grid-column: 2;
@@ -262,7 +241,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
 
   <div class="mid">
     <div class="qr-box">
-      <img class="qr" src="${qr.png_data_url}" alt="QR code for ${esc(qr.zone.label)}"/>
+      <img class="qr" src="${qr.png_data_url}" alt="QR code"/>
     </div>
     <ol class="steps">
       <li><span class="num">1</span><div><p class="step-title">What happened</p><p class="step-hint">Couldn't connect, slow, call choppy, dropped</p></div></li>
@@ -270,7 +249,6 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
       <li><span class="num">3</span><div><p class="step-title">Which app</p><p class="step-hint">Zoom, Teams, Meet, WhatsApp, Slack…</p></div></li>
       <li><span class="num">4</span><div><p class="step-title">Where you were</p><p class="step-hint">Floor or room, Wi‑Fi or wired</p></div></li>
     </ol>
-    <p class="location"><span>Location</span>${esc(locationLine)}</p>
   </div>
 
   <div class="pills" aria-hidden="true">

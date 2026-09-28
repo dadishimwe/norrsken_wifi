@@ -24,6 +24,7 @@ import { z } from "zod";
 import {
   APP_LABELS,
   SYMPTOM_LABELS,
+  UNIVERSAL_ZONE_ID,
   formatClarifiersDisplay,
 } from "@norrsken/shared";
 import type { Env } from "./env.js";
@@ -334,6 +335,9 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
           error: parsed.error.issues.map((i) => i.message).join("; "),
         });
       }
+      if (parsed.data.id === UNIVERSAL_ZONE_ID) {
+        return reply.code(409).send({ error: "zone_id_reserved" });
+      }
       const zone = await createZone(db, {
         id: parsed.data.id,
         label: parsed.data.label,
@@ -366,6 +370,9 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         })
         .safeParse(req.body);
       if (!body.success) return reply.code(400).send({ error: "invalid_body" });
+      if (id === UNIVERSAL_ZONE_ID && body.data.active === false) {
+        return reply.code(409).send({ error: "universal_zone" });
+      }
       if (body.data.active === false) {
         const reportCount = await countReportsForZone(db, id);
         if (reportCount > 0) {
@@ -379,6 +386,31 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       const zone = await updateZone(db, id, body.data);
       if (!zone) return reply.code(404).send({ error: "not_found" });
       return { zone };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get("/api/ops/qr", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const zone = await getZone(db, UNIVERSAL_ZONE_ID);
+      if (!zone || !zone.active) {
+        return reply.code(404).send({ error: "universal_zone_missing" });
+      }
+      try {
+        const host = typeof req.headers.host === "string" ? req.headers.host : undefined;
+        const qr = await buildZoneQr(env, zone.id, { host });
+        return {
+          zone: { id: zone.id, label: zone.label, floor: zone.floor, kind: zone.kind },
+          ...qr,
+        };
+      } catch (e) {
+        return reply.code(503).send({
+          error: e instanceof Error ? e.message : "qr_unavailable",
+        });
+      }
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       throw err;
@@ -421,6 +453,9 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       const me = await requireOps(req, reply, db);
       requireAdmin(me);
       const { id } = req.params as { id: string };
+      if (id === UNIVERSAL_ZONE_ID) {
+        return reply.code(409).send({ error: "universal_zone" });
+      }
       const zone = await getZone(db, id);
       if (!zone) return reply.code(404).send({ error: "not_found" });
       const reportCount = await countReportsForZone(db, id);
@@ -620,7 +655,9 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
           params,
         ),
         db.query(`select * from v_kpi_daily`),
-        db.query(`select id, label from zone where active = true order by sort, label`),
+        db.query(
+          `select id, label from zone where active = true and id <> 'house' order by sort, label`,
+        ),
       ]);
       return {
         filters: { days, channel: channel ?? "all", zone_id: zoneId },

@@ -5,6 +5,8 @@ import { AlertDialog, ConfirmDialog } from "./ConfirmDialog";
 import { buildPrintFlyerHtml } from "./printFlyer";
 import { CustomSelect } from "./CustomSelect";
 
+const HOUSE_QR = "house";
+
 const KIND_OPTIONS = [
   { value: "area", label: "Area / desks" },
   { value: "booth", label: "Booth" },
@@ -45,6 +47,7 @@ export function ZonesAdmin({ canEdit }: Props) {
   const [kind, setKind] = useState<"area" | "booth" | "event" | "common">("area");
   const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState<QrState | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [editing, setEditing] = useState<OpsZone | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [blocked, setBlocked] = useState<{ title: string; body: string } | null>(null);
@@ -61,6 +64,10 @@ export function ZonesAdmin({ canEdit }: Props) {
 
   useEffect(() => {
     reload().catch(() => setError("Could not load zones."));
+    opsApi
+      .reportQr()
+      .then(setQr)
+      .catch(() => setQrError("Could not load the report QR."));
   }, []);
 
   async function onCreate(e: FormEvent) {
@@ -105,15 +112,6 @@ export function ZonesAdmin({ canEdit }: Props) {
       setError(err instanceof Error ? err.message : "update_failed");
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function showQr(zoneId: string) {
-    setError(null);
-    try {
-      setQr(await opsApi.zoneQr(zoneId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "qr_failed");
     }
   }
 
@@ -263,9 +261,9 @@ export function ZonesAdmin({ canEdit }: Props) {
     pending?.kind === "delete"
       ? `Permanently remove “${pending.zone.label}”? Only unused zones can be deleted. This cannot be undone.`
       : pending?.kind === "disable"
-        ? `Turn off “${pending.zone.label}”? Guests won’t be able to open its QR link until you enable it again.`
+        ? `Turn off “${pending.zone.label}”? Guests won’t see it in the location list until you enable it again.`
         : pending
-          ? `Turn “${pending.zone.label}” back on so its QR / link works again?`
+          ? `Turn “${pending.zone.label}” back on so guests can pick it again?`
           : "";
 
   return (
@@ -297,7 +295,7 @@ export function ZonesAdmin({ canEdit }: Props) {
       <section className="panel">
         <h2>Zones</h2>
         <p className="muted" style={{ marginBottom: "1rem" }}>
-          Create spaces, generate QR / shareable links. Guests open the link — no login. Zones with
+          Places guests can pick on the report form. One QR covers the whole house. Zones with
           reports can’t be disabled or deleted.
         </p>
         {error ? <p className="error">{error}</p> : null}
@@ -312,7 +310,9 @@ export function ZonesAdmin({ canEdit }: Props) {
               </tr>
             </thead>
             <tbody>
-              {zones.map((z) => {
+              {zones
+                .filter((z) => z.id !== HOUSE_QR)
+                .map((z) => {
                 const used = zoneUsed(z);
                 return (
                   <tr key={z.id}>
@@ -327,14 +327,6 @@ export function ZonesAdmin({ canEdit }: Props) {
                     <td>{z.kind}</td>
                     <td>{z.active ? "active" : "off"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
-                      <button
-                        className="btn btn-ghost"
-                        type="button"
-                        onClick={() => showQr(z.id)}
-                        disabled={!z.active}
-                      >
-                        QR / link
-                      </button>
                       {canEdit ? (
                         <>
                           <button
@@ -463,37 +455,32 @@ export function ZonesAdmin({ canEdit }: Props) {
           </section>
         ) : null}
 
-        {qr ? (
-          <section className="panel qr-panel">
-            <h2>QR · {qr.zone.label}</h2>
-            <div className="qr-preview">
-              <img src={qr.png_data_url} alt={`QR for ${qr.zone.label}`} width={200} height={200} />
-            </div>
-            <div className="qr-actions">
-              <button className="btn btn-primary" type="button" onClick={copyLink}>
-                Copy link
-              </button>
-              <button className="btn" type="button" onClick={printQr}>
-                Print flyer
-              </button>
-              <a className="btn" href={qr.url} target="_blank" rel="noreferrer">
-                Open report page
-              </a>
-            </div>
-            <p className="muted qr-url-hint">
-              Print flyer uses the partnership poster layout with this zone’s location. Add Zuba
-              logos under <code>apps/web/brand/</code> if they don’t appear yet.
-            </p>
-          </section>
-        ) : (
-          <section className="panel">
-            <h2>Share a report link</h2>
-            <p className="muted">
-              Click <strong>QR / link</strong>, then Copy link or Print. Same URL works on laptop or
-              phone.
-            </p>
-          </section>
-        )}
+        <section className="panel qr-panel">
+          <h2>Report QR</h2>
+          {qr ? (
+            <>
+              <div className="qr-preview">
+                <img src={qr.png_data_url} alt="Report QR code" width={200} height={200} />
+              </div>
+              <div className="qr-actions">
+                <button className="btn btn-primary" type="button" onClick={copyLink}>
+                  Copy link
+                </button>
+                <button className="btn" type="button" onClick={printQr}>
+                  Print flyer
+                </button>
+                <a className="btn" href={qr.url} target="_blank" rel="noreferrer">
+                  Open report page
+                </a>
+              </div>
+              <p className="muted qr-url-hint">
+                One code for the house. Guests choose their location on the form.
+              </p>
+            </>
+          ) : (
+            <p className="muted">{qrError ?? "Loading the report QR…"}</p>
+          )}
+        </section>
       </div>
     </div>
   );

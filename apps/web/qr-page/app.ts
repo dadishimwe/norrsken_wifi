@@ -21,6 +21,7 @@ interface QrWindow {
 
 const boot = (window as unknown as QrWindow).__BOOTSTRAP__;
 const root = document.getElementById("app")!;
+const HOUSE_QR = "house";
 
 function escapeHtml(s: string): string {
   return s
@@ -99,6 +100,7 @@ function friendlySubmitError(code: string): string {
     rate_limited_day:
       "You've reached today's report limit. Thanks for helping — try again tomorrow if needed.",
     too_fast: "That was a bit quick — please take a second and try again.",
+    pick_zone: "Pick where you are.",
     unknown_zone: "This place isn't accepting reports right now.",
     occurred_in_future: "That time hasn’t happened yet. Pick a time that’s already passed.",
     bad_occurred_at: "That time couldn’t be read. Pick the date and time again.",
@@ -181,10 +183,12 @@ function formatDateLabel(d: Date): string {
 
 
 async function run(b: Bootstrap) {
+  const places = b.zones.filter((z) => z.id !== HOUSE_QR);
+  const entryIsHouse = b.zone.id === HOUSE_QR;
   let started = Date.now();
-  let zoneId = b.zone.id;
-  let zoneSource: "qr" | "override" = "qr";
-  let zoneLabel = b.zone.label;
+  let zoneId = entryIsHouse ? "" : b.zone.id;
+  let zoneSource: "qr" | "selected" | "override" = entryIsHouse ? "selected" : "qr";
+  let zoneLabel = entryIsHouse ? "" : b.zone.label;
   let zoneFloor = b.zone.floor;
   const symptoms = new Set<string>();
   const apps = new Set<string>();
@@ -249,7 +253,7 @@ async function run(b: Bootstrap) {
       if (!raw) return;
       const d = JSON.parse(raw) as {
         zoneId?: string;
-        zoneSource?: "qr" | "override";
+        zoneSource?: "qr" | "selected" | "override";
         zoneLabel?: string;
         zoneFloor?: string | null;
         symptoms?: string[];
@@ -263,9 +267,14 @@ async function run(b: Bootstrap) {
         exactMinute?: number;
         started?: number;
       };
-      if (d.zoneId) {
+      if (d.zoneId && places.some((z) => z.id === d.zoneId)) {
         zoneId = d.zoneId;
-        zoneSource = d.zoneSource === "override" ? "override" : "qr";
+        zoneSource =
+          d.zoneSource === "override" || d.zoneSource === "selected" || d.zoneSource === "qr"
+            ? d.zoneSource
+            : entryIsHouse
+              ? "selected"
+              : "qr";
         zoneLabel = d.zoneLabel ?? zoneLabel;
         zoneFloor = d.zoneFloor ?? zoneFloor;
       }
@@ -439,7 +448,7 @@ async function run(b: Bootstrap) {
       <div class="field-block">
         <h2 class="field-title">Where?</h2>
         <div class="chips chips-pills zone-picks" role="listbox" aria-label="Where?">
-          ${b.zones
+          ${places
             .map(
               (z) =>
                 `<button type="button" class="chip${z.id === zoneId ? " on" : ""}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(locationLine(z.label, z.floor))}</button>`,
@@ -697,12 +706,12 @@ async function run(b: Bootstrap) {
     root.querySelectorAll<HTMLButtonElement>("[data-zone-opt]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.dataset.zoneOpt!;
-        const z = b.zones.find((x) => x.id === id);
+        const z = places.find((x) => x.id === id);
         const priorHere = readDone(id);
         zoneId = id;
         zoneLabel = z?.label ?? id;
         zoneFloor = z?.floor ?? null;
-        zoneSource = id === b.zone.id ? "qr" : "override";
+        zoneSource = id === b.zone.id ? "qr" : entryIsHouse ? "selected" : "override";
         if (priorHere) {
           phase = "done";
           recentCount = priorHere.recentCount;
@@ -746,6 +755,10 @@ async function run(b: Bootstrap) {
     if (busy) return;
     syncTextInputs();
     setError("");
+    if (!zoneId) {
+      setError("Pick where you are.");
+      return;
+    }
     if (symptoms.size === 0) {
       setError("Pick at least one thing that happened.");
       return;

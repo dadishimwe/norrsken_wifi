@@ -50,6 +50,9 @@ export type DeviceClass = (typeof DEVICE_CLASSES)[number];
 export const DEVICE_OPTIONS = ["iphone", "android", "windows", "mac", "linux", "unknown"] as const;
 export type DeviceOption = (typeof DEVICE_OPTIONS)[number];
 
+/** Signed entry for the one house-wide QR. Guests pick a real place on the form. */
+export const UNIVERSAL_ZONE_ID = "house";
+
 export const ZONE_KINDS = ["area", "booth", "event", "common"] as const;
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 

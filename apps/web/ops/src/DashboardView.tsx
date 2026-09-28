@@ -227,7 +227,9 @@ export function DashboardView({ canEdit = false }: Props) {
         <section className="panel">
           <h2>Zones</h2>
           <div className="zone-grid">
-            {data.zones.map((z) => {
+            {data.zones
+              .filter((z) => z.zone_id !== "house")
+              .map((z) => {
               const hot = Number(z.reports_1h) >= 2;
               return (
                 <div
