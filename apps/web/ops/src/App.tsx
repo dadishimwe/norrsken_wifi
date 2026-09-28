@@ -28,7 +28,9 @@ export function App() {
     return (
       <div className="login-page">
         <ThemeToggle theme={theme} onToggle={toggleTheme} className="theme-toggle-float" />
-        <p className="muted">Loading…</p>
+        <div className="login-main">
+          <p className="muted">Loading…</p>
+        </div>
       </div>
     );
   }

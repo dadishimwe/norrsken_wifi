@@ -33,6 +33,7 @@ export function LoginPage({ onLogin, theme, onToggleTheme }: Props) {
   return (
     <div className="login-page">
       <ThemeToggle theme={theme} onToggle={onToggleTheme} className="theme-toggle-float" />
+      <div className="login-main">
       <form className="login-card" onSubmit={onSubmit}>
         <BrandLogo theme={theme} className="logo" />
         <h1>Network Ops</h1>
@@ -63,6 +64,7 @@ export function LoginPage({ onLogin, theme, onToggleTheme }: Props) {
           {busy ? "Signing in…" : "Sign in"}
         </button>
       </form>
+      </div>
       <div className="powered-by powered-by-login">
         <span>Powered by</span>
         <PartnerLogo theme={theme} className="partner-logo partner-logo-footer" />
