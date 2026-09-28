@@ -31,7 +31,9 @@ export async function registerRoutes(app: FastifyInstance, db: Pool, env: Env) {
         // Prefer direct connection; do not trust X-Forwarded-For for identity.
         // Campus check uses socket address only when CAMPUS_IPS is set.
         const remoteIp = req.socket.remoteAddress;
-        const result = await createReport(db, env, req.body, remoteIp);
+        const userAgentHeader = req.headers["user-agent"];
+        const userAgent = typeof userAgentHeader === "string" ? userAgentHeader : undefined;
+        const result = await createReport(db, env, req.body, remoteIp, userAgent);
         return reply.code(201).send(result);
       } catch (err) {
         if (err instanceof HttpError) {

@@ -33,6 +33,10 @@ export type Channel = (typeof CHANNELS)[number];
 export const ZONE_SOURCES = ["qr", "selected", "remembered", "override"] as const;
 export type ZoneSource = (typeof ZONE_SOURCES)[number];
 
+/** Browser that submitted a QR report. Detected from the User-Agent, not chosen on the form. */
+export const BROWSER_IDS = ["chrome", "safari", "firefox", "edge", "opera", "samsung"] as const;
+export type BrowserId = (typeof BROWSER_IDS)[number];
+
 export const DEVICE_CLASSES = [
   "iphone",
   "android",
@@ -43,6 +47,7 @@ export const DEVICE_CLASSES = [
   /** Legacy auto-detect values (still accepted on read) */
   "mobile",
   "desktop",
+  ...BROWSER_IDS,
 ] as const;
 export type DeviceClass = (typeof DEVICE_CLASSES)[number];
 

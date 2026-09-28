@@ -312,7 +312,7 @@ export function DashboardView({ canEdit = false }: Props) {
                     <th title="Extra answers, including a note and the name typed for another app">
                       Clarifiers
                     </th>
-                    <th>Device</th>
+                    <th>Browser</th>
                     {canEdit ? <th className="col-actions" aria-label="Actions" /> : null}
                   </tr>
                 </thead>

@@ -78,6 +78,12 @@ function labelDevice(v: unknown): string {
     unknown: "Not sure",
     mobile: "Phone",
     desktop: "Laptop / desktop",
+    chrome: "Chrome",
+    safari: "Safari",
+    firefox: "Firefox",
+    edge: "Edge",
+    opera: "Opera",
+    samsung: "Samsung Internet",
   };
   return map[id] ?? (id ? id.replaceAll("_", " ") : "");
 }
@@ -526,22 +532,22 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       await requireOps(req, reply, db);
       const { rows } = await db.query(`select * from v_reports_full order by created_at desc limit 5000`);
       const header = [
-        "id",
-        "created_at",
-        "symptoms",
-        "apps",
-        "when_bucket",
-        "occurred_at",
-        "clarifiers",
-        "device_class",
-        "fill_ms",
-        "incident_id",
-      ];
-      const lines = [header.join(",")];
+        ["id", "id"],
+        ["created_at", "created_at"],
+        ["symptoms", "symptoms"],
+        ["apps", "apps"],
+        ["when_bucket", "when_bucket"],
+        ["occurred_at", "occurred_at"],
+        ["clarifiers", "clarifiers"],
+        ["device_class", "browser"],
+        ["fill_ms", "fill_ms"],
+        ["incident_id", "incident_id"],
+      ] as const;
+      const lines = [header.map(([, title]) => title).join(",")];
       for (const r of rows as Record<string, unknown>[]) {
         lines.push(
           header
-            .map((h) => {
+            .map(([h]) => {
               const v = r[h];
               let s = "";
               if (v == null) s = "";

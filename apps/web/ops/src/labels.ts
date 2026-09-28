@@ -46,6 +46,12 @@ export const DEVICE_LABELS: Record<string, string> = {
   unknown: "Not sure",
   mobile: "Phone",
   desktop: "Laptop / desktop",
+  chrome: "Chrome",
+  safari: "Safari",
+  firefox: "Firefox",
+  edge: "Edge",
+  opera: "Opera",
+  samsung: "Samsung Internet",
 };
 
 const CLARIFIER_FIELDS: Record<string, string> = {

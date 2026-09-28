@@ -19,6 +19,7 @@ import {
 } from "@norrsken/db";
 import {
   UNIVERSAL_ZONE_ID,
+  browserFromUserAgent,
   createReportSchema,
   patchReportSchema,
   pickClarifiers,
@@ -87,6 +88,7 @@ export async function createReport(
   env: Env,
   body: unknown,
   remoteIp: string | undefined,
+  userAgent?: string,
 ): Promise<{
   report_id: string;
   edit_token: string;
@@ -97,7 +99,11 @@ export async function createReport(
   if (!parsed.success) {
     throw new HttpError(400, parsed.error.issues.map((i) => i.message).join("; "));
   }
-  const input: CreateReportInput = parsed.data;
+  const input: CreateReportInput = {
+    ...parsed.data,
+    device_class:
+      parsed.data.channel === "qr" ? browserFromUserAgent(userAgent) : parsed.data.device_class,
+  };
 
   if (input.website !== undefined && input.website.length > 0) {
     throw new HttpError(400, "rejected");
