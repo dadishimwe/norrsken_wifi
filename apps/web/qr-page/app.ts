@@ -92,15 +92,43 @@ function clearDone(zoneId: string) {
 }
 
 function friendlySubmitError(code: string): string {
-  if (code === "rate_limited_zone") {
-    return "You already sent a report for this area a moment ago. Thanks — no need to send another.";
+  const raw = code.trim();
+  const known: Record<string, string> = {
+    rate_limited_zone:
+      "You already sent a report for this area a moment ago. Thanks — no need to send another.",
+    rate_limited_day:
+      "You've reached today's report limit. Thanks for helping — try again tomorrow if needed.",
+    too_fast: "That was a bit quick — please take a second and try again.",
+    unknown_zone: "This place isn't accepting reports right now.",
+    occurred_in_future: "That time hasn’t happened yet. Pick a time that’s already passed.",
+    bad_occurred_at: "That time couldn’t be read. Pick the date and time again.",
+    save_failed: "Could not save. Try again.",
+    rejected: "Could not save that report.",
+  };
+  if (known[raw]) return known[raw];
+
+  const lower = raw.toLowerCase();
+  if (lower.includes("at most 5")) return "You can pick up to 5 apps.";
+  if (lower.includes("at most 3") || lower.includes("at least 1")) {
+    return "Pick 1 to 3 things that happened.";
   }
-  if (code === "rate_limited_day") {
-    return "You've reached today's report limit. Thanks for helping — try again tomorrow if needed.";
+  if (lower.includes("at most 400")) return "The note is too long. Keep it under 400 characters.";
+  if (lower.includes("at most 80")) return "The other app name is too long.";
+  if (lower.includes("future")) {
+    return "That time hasn’t happened yet. Pick a time that’s already passed.";
   }
-  if (code === "too_fast") return "That was a bit quick — please take a second and try again.";
-  if (code === "unknown_zone") return "This place isn't accepting reports right now.";
-  return code;
+  if (
+    lower.includes("array must") ||
+    lower.includes("string must") ||
+    lower.includes("invalid enum") ||
+    lower.includes("expected") ||
+    lower.includes("too big") ||
+    lower.includes("too small") ||
+    raw.length > 160
+  ) {
+    return "Something in the form wasn’t accepted. Check your answers and try again.";
+  }
+  return "Could not save. Try again.";
 }
 
 function locationLine(label: string, floor: string | null | undefined): string {
@@ -294,10 +322,10 @@ async function run(b: Bootstrap) {
   function setError(msg: string) {
     errorMsg = msg;
     const el = root.querySelector<HTMLElement>(".step-error");
-    if (el) {
-      el.hidden = !msg;
-      el.textContent = msg;
-    }
+    if (!el) return;
+    el.hidden = !msg;
+    el.textContent = msg;
+    if (msg) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
   function setBusyUi(on: boolean) {
@@ -347,7 +375,7 @@ async function run(b: Bootstrap) {
 
         <section class="card step-card" id="step-card">
           ${formBody()}
-          <p class="error step-error" ${errorMsg ? "" : "hidden"}>${escapeHtml(errorMsg)}</p>
+          <p class="alert step-error" role="alert" ${errorMsg ? "" : "hidden"}>${escapeHtml(errorMsg)}</p>
           <div class="actions">
             <button type="button" class="btn btn-primary" data-action="submit" ${busy ? "disabled" : ""}>
               ${busy ? "Saving…" : "Submit ✔"}
@@ -391,7 +419,7 @@ async function run(b: Bootstrap) {
       </div>
       <div class="field-block">
         <h2 class="field-title">Which apps?</h2>
-        <p class="hint">Optional — tap any that apply</p>
+        <p class="hint">Optional — up to 5</p>
         <div class="chips chips-pills">
           ${b.apps
             .map(
@@ -520,11 +548,15 @@ async function run(b: Bootstrap) {
         if (symptoms.has(id)) {
           symptoms.delete(id);
           btn.classList.remove("on");
+          setError("");
         } else if (symptoms.size < 3) {
           symptoms.add(id);
           btn.classList.add("on");
+          setError("");
+        } else {
+          setError("You can pick up to 3.");
+          return;
         }
-        setError("");
         saveDraft();
       });
     });
@@ -539,9 +571,11 @@ async function run(b: Bootstrap) {
             const box = root.querySelector<HTMLElement>(".other-app");
             if (box) box.hidden = true;
           }
-        } else {
+          setError("");
+        } else if (apps.size < 5) {
           apps.add(id);
           btn.classList.add("on");
+          setError("");
           if (id === "other") {
             const box = root.querySelector<HTMLElement>(".other-app");
             if (box) {
@@ -549,6 +583,9 @@ async function run(b: Bootstrap) {
               root.querySelector<HTMLInputElement>("#other-app")?.focus();
             }
           }
+        } else {
+          setError("You can pick up to 5 apps.");
+          return;
         }
         saveDraft();
       });
@@ -713,6 +750,14 @@ async function run(b: Bootstrap) {
       setError("Pick at least one thing that happened.");
       return;
     }
+    if (symptoms.size > 3) {
+      setError("You can pick up to 3.");
+      return;
+    }
+    if (apps.size > 5) {
+      setError("You can pick up to 5 apps.");
+      return;
+    }
     const priorHere = readDone(zoneId);
     if (priorHere) {
       recentCount = priorHere.recentCount;
@@ -745,11 +790,12 @@ async function run(b: Bootstrap) {
           website: hp,
         }),
       });
-      const data = (await res.json()) as {
-        report_id?: string;
-        recent_count?: number;
-        error?: string;
-      };
+      let data: { report_id?: string; recent_count?: number; error?: string } = {};
+      try {
+        data = (await res.json()) as typeof data;
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
         const code = data.error || "save_failed";
         if (code === "rate_limited_zone") {
@@ -769,7 +815,11 @@ async function run(b: Bootstrap) {
       phase = "done";
       render();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save. Try again.");
+      if (e instanceof TypeError) {
+        setError("Couldn’t reach the server. Check your connection and try again.");
+      } else {
+        setError(e instanceof Error ? e.message : "Could not save. Try again.");
+      }
     } finally {
       setBusyUi(false);
     }

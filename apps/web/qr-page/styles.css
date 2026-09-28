@@ -725,10 +725,20 @@ body {
   cursor: not-allowed;
 }
 
-.error {
-  color: var(--danger);
-  font-size: 0.85rem;
+.alert {
   margin: var(--s2) 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(196, 60, 60, 0.08);
+  border: 1px solid rgba(196, 60, 60, 0.35);
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.alert[hidden] {
+  display: none;
 }
 
 .hp {
