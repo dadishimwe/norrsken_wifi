@@ -96,17 +96,19 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   .mid {
     display: grid;
     grid-template-columns: 72mm 1fr;
-    gap: 18px;
-    align-items: start;
+    column-gap: 16px;
+    row-gap: 10px;
+    align-items: stretch;
     margin: 0 0 18px;
   }
-  .qr-col { text-align: center; }
   .qr-box {
+    grid-column: 1;
+    grid-row: 1;
     border: 2.5px dashed ${orange};
     border-radius: 18px;
     background: ${soft};
     padding: 14px;
-    min-height: 72mm;
+    min-height: 78mm;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -120,7 +122,10 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     border-radius: 4px;
   }
   .location {
-    margin-top: 10px;
+    grid-column: 1;
+    grid-row: 2;
+    margin: 0;
+    text-align: center;
     font-size: 13px;
     font-weight: 700;
     color: ${navy};
@@ -135,35 +140,42 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     margin-bottom: 2px;
   }
   .steps {
+    grid-column: 2;
+    grid-row: 1;
     list-style: none;
-    margin: 4px 0 0;
-    padding: 0;
+    margin: 0;
+    padding: 2px 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 100%;
   }
   .steps li {
     display: grid;
-    grid-template-columns: 28px 1fr;
-    gap: 10px;
-    margin-bottom: 14px;
-    align-items: start;
+    grid-template-columns: 36px 1fr;
+    gap: 12px;
+    margin: 0;
+    align-items: center;
   }
   .num {
-    width: 28px; height: 28px; border-radius: 50%;
+    width: 36px; height: 36px; border-radius: 50%;
     background: ${orange}; color: #fff;
-    font-size: 14px; font-weight: 800;
+    font-size: 16px; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
     line-height: 1;
   }
   .step-title {
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 800;
-    margin: 2px 0 3px;
+    margin: 0 0 3px;
     color: ${navy};
+    line-height: 1.15;
   }
   .step-hint {
-    font-size: 12px;
+    font-size: 14px;
     color: ${muted};
     margin: 0;
-    line-height: 1.4;
+    line-height: 1.35;
     font-weight: 400;
   }
   .pills {
@@ -249,11 +261,8 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   Scan, tap four answers, done. Every report is matched against what the network was doing at that moment.</p>
 
   <div class="mid">
-    <div class="qr-col">
-      <div class="qr-box">
-        <img class="qr" src="${qr.png_data_url}" alt="QR code for ${esc(qr.zone.label)}"/>
-      </div>
-      <p class="location"><span>Location</span>${esc(locationLine)}</p>
+    <div class="qr-box">
+      <img class="qr" src="${qr.png_data_url}" alt="QR code for ${esc(qr.zone.label)}"/>
     </div>
     <ol class="steps">
       <li><span class="num">1</span><div><p class="step-title">What happened</p><p class="step-hint">Couldn't connect, slow, call choppy, dropped</p></div></li>
@@ -261,6 +270,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
       <li><span class="num">3</span><div><p class="step-title">Which app</p><p class="step-hint">Zoom, Teams, Meet, WhatsApp, Slack…</p></div></li>
       <li><span class="num">4</span><div><p class="step-title">Where you were</p><p class="step-hint">Floor or room, Wi‑Fi or wired</p></div></li>
     </ol>
+    <p class="location"><span>Location</span>${esc(locationLine)}</p>
   </div>
 
   <div class="pills" aria-hidden="true">
