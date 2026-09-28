@@ -6,13 +6,30 @@ import { buildPrintFlyerHtml } from "./printFlyer";
 import { CustomSelect } from "./CustomSelect";
 
 const HOUSE_QR = "house";
+const RETIRED_ZONES = new Set([
+  "l1-reception",
+  "l1-cafe",
+  "l1-event",
+  "l2-west-desks",
+  "l2-east-desks",
+  "l2-booth-01",
+  "l2-booth-02",
+  "l2-booth-03",
+  "l3-north-desks",
+  "l3-south-desks",
+]);
 
 const KIND_OPTIONS = [
+  { value: "classroom", label: "Classroom" },
+  { value: "common", label: "Common" },
   { value: "area", label: "Area / desks" },
   { value: "booth", label: "Booth" },
   { value: "event", label: "Event" },
-  { value: "common", label: "Common" },
 ] as const;
+
+const KIND_LABELS: Record<string, string> = Object.fromEntries(
+  KIND_OPTIONS.map((option) => [option.value, option.label]),
+);
 
 function slugify(label: string): string {
   return label
@@ -44,7 +61,7 @@ export function ZonesAdmin({ canEdit }: Props) {
   const [label, setLabel] = useState("");
   const [id, setId] = useState("");
   const [floor, setFloor] = useState("");
-  const [kind, setKind] = useState<"area" | "booth" | "event" | "common">("area");
+  const [kind, setKind] = useState<(typeof KIND_OPTIONS)[number]["value"]>("classroom");
   const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState<QrState | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
@@ -85,7 +102,7 @@ export function ZonesAdmin({ canEdit }: Props) {
       setLabel("");
       setId("");
       setFloor("");
-      setKind("area");
+      setKind("classroom");
       await reload();
       flash("Zone created");
     } catch (err) {
@@ -103,7 +120,7 @@ export function ZonesAdmin({ canEdit }: Props) {
       await opsApi.patchZone(editing.id, {
         label: editing.label,
         floor: editing.floor,
-        kind: editing.kind as "area" | "booth" | "event" | "common",
+        kind: editing.kind as (typeof KIND_OPTIONS)[number]["value"],
       });
       setEditing(null);
       await reload();
@@ -295,8 +312,8 @@ export function ZonesAdmin({ canEdit }: Props) {
       <section className="panel">
         <h2>Zones</h2>
         <p className="muted" style={{ marginBottom: "1rem" }}>
-          Places guests can pick on the report form. One QR covers the whole house. Zones with
-          reports can’t be disabled or deleted.
+          Reception, Ground, and classrooms C1–C5. Classroom 2 is C2L1–C2L5 (C classroom, L level).
+          One QR covers the whole house. Zones with reports can’t be disabled or deleted.
         </p>
         {error ? <p className="error">{error}</p> : null}
         <div className="table-wrap">
@@ -311,7 +328,7 @@ export function ZonesAdmin({ canEdit }: Props) {
             </thead>
             <tbody>
               {zones
-                .filter((z) => z.id !== HOUSE_QR)
+                .filter((z) => z.id !== HOUSE_QR && !RETIRED_ZONES.has(z.id))
                 .map((z) => {
                 const used = zoneUsed(z);
                 return (
@@ -324,7 +341,7 @@ export function ZonesAdmin({ canEdit }: Props) {
                         {used ? ` · ${z.report_count} reports` : ""}
                       </div>
                     </td>
-                    <td>{z.kind}</td>
+                    <td>{KIND_LABELS[z.kind] ?? z.kind}</td>
                     <td>{z.active ? "active" : "off"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
                       {canEdit ? (

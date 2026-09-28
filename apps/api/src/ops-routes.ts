@@ -25,6 +25,7 @@ import {
   APP_LABELS,
   SYMPTOM_LABELS,
   UNIVERSAL_ZONE_ID,
+  ZONE_KINDS,
   formatClarifiersDisplay,
 } from "@norrsken/shared";
 import type { Env } from "./env.js";
@@ -316,7 +317,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "id: lowercase letters, numbers, hyphens"),
     label: z.string().min(1).max(120),
     floor: z.string().max(32).nullable().optional(),
-    kind: z.enum(["area", "booth", "event", "common"]).default("area"),
+    kind: z.enum(ZONE_KINDS).default("area"),
     sort: z.number().int().optional(),
   });
 
@@ -370,7 +371,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         .object({
           label: z.string().min(1).max(120).optional(),
           floor: z.string().max(32).nullable().optional(),
-          kind: z.enum(["area", "booth", "event", "common"]).optional(),
+          kind: z.enum(ZONE_KINDS).optional(),
           active: z.boolean().optional(),
           sort: z.number().int().optional(),
         })

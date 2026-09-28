@@ -58,7 +58,7 @@ export type DeviceOption = (typeof DEVICE_OPTIONS)[number];
 /** Signed entry for the one house-wide QR. Guests pick a real place on the form. */
 export const UNIVERSAL_ZONE_ID = "house";
 
-export const ZONE_KINDS = ["area", "booth", "event", "common"] as const;
+export const ZONE_KINDS = ["area", "booth", "event", "common", "classroom"] as const;
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 
 export const INCIDENT_STATUSES = ["open", "investigating", "resolved"] as const;

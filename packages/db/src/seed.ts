@@ -1,5 +1,5 @@
 import pg from "pg";
-import { ZONES } from "./zones-data.js";
+import { LEGACY_ZONE_IDS, ZONES } from "./zones-data.js";
 
 async function seed() {
   const url = process.env.DATABASE_URL;
@@ -23,6 +23,17 @@ async function seed() {
         [z.id, z.label, z.floor, z.kind, z.sort],
       );
     }
+    await client.query(
+      `
+      delete from zone z
+      where z.id = any($1::text[])
+        and not exists (select 1 from report r where r.zone_id = z.id)
+      `,
+      [LEGACY_ZONE_IDS],
+    );
+    await client.query(`update zone set active = false where id = any($1::text[])`, [
+      LEGACY_ZONE_IDS,
+    ]);
     console.log(`Seeded ${ZONES.length} zones`);
   } finally {
     await client.end();

@@ -133,6 +133,40 @@ function friendlySubmitError(code: string): string {
   return "Could not save. Try again.";
 }
 
+function zoneChip(z: Zone, zoneId: string): string {
+  const on = z.id === zoneId ? " on" : "";
+  return `<button type="button" class="chip${on}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(locationLine(z.label, z.floor))}</button>`;
+}
+
+/** Reception and Ground first, then classrooms. Classroom 2 levels stay in one group. */
+function zonePicker(places: Zone[], zoneId: string): string {
+  const used = new Set<string>();
+  const byId = new Map(places.map((z) => [z.id, z]));
+  const take = (ids: string[]): Zone[] =>
+    ids.flatMap((id) => {
+      const z = byId.get(id);
+      if (!z) return [];
+      used.add(id);
+      return [z];
+    });
+  const classroom2 = places.filter((z) => /^c2l\d+$/.test(z.id));
+  classroom2.forEach((z) => used.add(z.id));
+  const sections: { title: string | null; zones: Zone[] }[] = [
+    { title: null, zones: take(["reception", "ground", "c1"]) },
+    { title: classroom2.length ? "Classroom 2" : null, zones: classroom2 },
+    { title: null, zones: take(["c3", "c4", "c5"]) },
+    { title: null, zones: places.filter((z) => !used.has(z.id)) },
+  ].filter((section) => section.zones.length > 0);
+
+  return `<div class="zone-groups">${sections
+    .map((section) => {
+      const chips = `<div class="chips chips-pills">${section.zones.map((z) => zoneChip(z, zoneId)).join("")}</div>`;
+      if (!section.title) return chips;
+      return `<div class="zone-group"><p class="zone-group-label">${escapeHtml(section.title)}</p>${chips}</div>`;
+    })
+    .join("")}</div>`;
+}
+
 function locationLine(label: string, floor: string | null | undefined): string {
   if (floor && floor.trim() && !label.toLowerCase().includes(floor.toLowerCase())) {
     return `${floor.trim()} · ${label}`;
@@ -447,13 +481,9 @@ async function run(b: Bootstrap) {
       </div>
       <div class="field-block">
         <h2 class="field-title">Where?</h2>
-        <div class="chips chips-pills zone-picks" role="listbox" aria-label="Where?">
-          ${places
-            .map(
-              (z) =>
-                `<button type="button" class="chip${z.id === zoneId ? " on" : ""}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(locationLine(z.label, z.floor))}</button>`,
-            )
-            .join("")}
+        <p class="hint">C is a classroom. L is a level, so C2L3 is Classroom 2, level 3.</p>
+        <div role="listbox" aria-label="Where?">
+          ${zonePicker(places, zoneId)}
         </div>
       </div>
       <div class="field-block field-block-last">

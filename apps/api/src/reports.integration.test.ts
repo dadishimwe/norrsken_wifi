@@ -27,7 +27,7 @@ describe.skipIf(!hasDb)("reports ingest (integration)", () => {
       db,
       env,
       {
-        zone_id: "l2-west-desks",
+        zone_id: "reception",
         zone_source: "qr",
         channel: "qr",
         symptoms: ["slow"],
@@ -73,7 +73,7 @@ describe.skipIf(!hasDb)("reports ingest (integration)", () => {
         db,
         env,
         {
-          zone_id: "l2-west-desks",
+          zone_id: "reception",
           zone_source: "qr",
           symptoms: ["wifi_drops"],
           fill_ms: 100,

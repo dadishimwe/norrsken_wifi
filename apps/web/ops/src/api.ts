@@ -171,7 +171,7 @@ export const opsApi = {
     id: string;
     label: string;
     floor?: string | null;
-    kind: "area" | "booth" | "event" | "common";
+    kind: "area" | "booth" | "event" | "common" | "classroom";
     sort?: number;
   }) =>
     api<{ zone: OpsZone }>("/api/ops/zones", {
@@ -183,7 +183,7 @@ export const opsApi = {
     body: {
       label?: string;
       floor?: string | null;
-      kind?: "area" | "booth" | "event" | "common";
+      kind?: "area" | "booth" | "event" | "common" | "classroom";
       active?: boolean;
       sort?: number;
     },

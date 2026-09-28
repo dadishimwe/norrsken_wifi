@@ -36,12 +36,12 @@ describe.skipIf(!hasDb || !fs.existsSync(privPath) || !fs.existsSync(qrDist))(
 
     it("serves a signed zone page", async () => {
       const key = loadPrivateKey(privPath);
-      const token = signZoneToken(key, "l2-west-desks", "k1");
+      const token = signZoneToken(key, "reception", "k1");
       const res = await app.inject({ method: "GET", url: `/r/${token}` });
       expect(res.statusCode).toBe(200);
-      expect(res.body).toContain("l2-west-desks");
+      expect(res.body).toContain("reception");
       expect(res.body).toContain("__BOOTSTRAP__");
-      expect(res.body).toContain("West desks");
+      expect(res.body).toContain("Reception");
     });
 
     it("rejects forged tokens", async () => {
