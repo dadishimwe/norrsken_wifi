@@ -126,6 +126,7 @@ const FIELD_LABELS: Record<string, string> = {
   slow_scope: "Slow scope",
   wifi_context: "Wi‑Fi",
   other_app: "Other app",
+  note: "Anything else",
 };
 
 /** Human-readable clarifier summary for ops tables / CSV. */

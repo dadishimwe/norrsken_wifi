@@ -1,13 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { downloadCsv, opsApi, type AnalyticsPayload } from "./api";
-import {
-  HorizontalBars,
-  PieChart,
-  VerticalBars,
-  formatDayTick,
-} from "./Charts";
+import { HorizontalBars, VerticalBars, formatDayTick } from "./Charts";
 import { CustomSelect } from "./CustomSelect";
-import { labelApp, labelSymptom, labelWifi } from "./labels";
+import { labelApp, labelSymptom } from "./labels";
 
 type Days = 7 | 14 | 30 | 90;
 type Channel = "all" | "qr" | "slack";
@@ -104,11 +99,6 @@ export function GraphsView() {
       value: n,
       title: `${pretty}: ${n} report${n === 1 ? "" : "s"}`,
     };
-  });
-  const wifiPoints = data.wifi.map((w) => {
-    const n = Number(w.n) || 0;
-    const name = labelWifi(w.wifi_context);
-    return { label: name, value: n, title: `${name}: ${n}` };
   });
   const appPoints = data.apps.map((a) => {
     const n = Number(a.n) || 0;
@@ -250,14 +240,6 @@ export function GraphsView() {
             compactLabels={compactLabels}
             formatLabel={formatDayTick}
           />
-        </section>
-
-        <section className="panel chart-panel">
-          <div className="chart-head">
-            <h2>Wi‑Fi context</h2>
-            <span className="chart-kind">Pie · composition</span>
-          </div>
-          <PieChart items={wifiPoints} />
         </section>
 
         <section className="panel chart-panel">

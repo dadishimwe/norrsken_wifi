@@ -55,6 +55,8 @@ const CLARIFIER_FIELDS: Record<string, string> = {
   connect_detail: "What they saw",
   slow_scope: "Slow scope",
   wifi_context: "Wi‑Fi",
+  note: "Anything else",
+  other_app: "Other app",
 };
 
 const CLARIFIER_VALUES: Record<string, Record<string, string>> = {
@@ -148,6 +150,10 @@ export function formatClarifiersDisplay(clarifiers: unknown): string {
     if (raw == null || raw === "") continue;
     if (key === "other_app") {
       parts.push(`Other app: ${String(raw).trim()}`);
+      continue;
+    }
+    if (key === "note") {
+      parts.push(String(raw).trim());
       continue;
     }
     const value = String(raw);

@@ -8,7 +8,6 @@ import {
   labelDevice,
   labelSymptom,
   labelWhen,
-  labelWifi,
 } from "./labels";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
@@ -305,18 +304,13 @@ export function DashboardView({ canEdit = false }: Props) {
                 <thead>
                   <tr>
                     <th>When</th>
-                    <th>Zone</th>
-                    <th>Source</th>
                     <th>Symptoms</th>
                     <th>Apps</th>
                     <th>Timing</th>
-                    <th>Wi‑Fi</th>
-                    <th title="Extra answers, such as what was slow, choppy, or the name typed for another app">
+                    <th title="Extra answers, including a note and the name typed for another app">
                       Clarifiers
                     </th>
                     <th>Device</th>
-                    <th>Channel</th>
-                    <th>Weight</th>
                     {canEdit ? <th className="col-actions" aria-label="Actions" /> : null}
                   </tr>
                 </thead>
@@ -324,8 +318,6 @@ export function DashboardView({ canEdit = false }: Props) {
                   {rows.map((r) => (
                     <tr key={r.id} className={busy && pending?.id === r.id ? "row-busy" : undefined}>
                       <td title={r.created_at}>{timeAgo(r.created_at)}</td>
-                      <td>{r.zone_label}</td>
-                      <td>{r.zone_source ?? "—"}</td>
                       <td>
                         {r.symptoms.map((s) => (
                           <span className="pill" key={s}>
@@ -343,11 +335,8 @@ export function DashboardView({ canEdit = false }: Props) {
                           : "—"}
                       </td>
                       <td>{labelWhen(r.when_bucket, r.occurred_at)}</td>
-                      <td>{labelWifi(r.wifi_context)}</td>
                       <td className="cell-clamp">{clarifierText(r.clarifiers)}</td>
                       <td>{labelDevice(r.device_class)}</td>
-                      <td>{r.channel}</td>
-                      <td>{fmtNum(r.weight, 1)}</td>
                       {canEdit ? (
                         <td className="col-actions">
                           <RowMenu

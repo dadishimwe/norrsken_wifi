@@ -56,17 +56,6 @@ function labelAppsForExport(
     .join("|");
 }
 
-function labelWifi(v: unknown): string {
-  const id = String(v ?? "");
-  const map: Record<string, string> = {
-    member_wifi: "Member Wi-Fi",
-    guest_wifi: "Guest Wi-Fi",
-    wired: "Wired",
-    unknown: "Not sure",
-  };
-  return map[id] ?? (id ? id.replaceAll("_", " ") : "");
-}
-
 function labelWhenBucket(v: unknown): string {
   const id = String(v ?? "");
   const map: Record<string, string> = {
@@ -504,19 +493,13 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       const header = [
         "id",
         "created_at",
-        "channel",
-        "zone_id",
-        "zone_label",
-        "zone_source",
         "symptoms",
         "apps",
         "when_bucket",
         "occurred_at",
-        "wifi_context",
         "clarifiers",
         "device_class",
         "fill_ms",
-        "weight",
         "incident_id",
       ];
       const lines = [header.join(",")];
@@ -531,7 +514,6 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
               else if (h === "apps")
                 s = labelAppsForExport(v, r.clarifiers, APP_LABELS as Record<string, string>);
               else if (h === "when_bucket") s = labelWhenBucket(v);
-              else if (h === "wifi_context") s = labelWifi(v);
               else if (h === "clarifiers" && typeof v === "object")
                 s = formatClarifiersDisplay(v as Record<string, unknown>);
               else if (h === "device_class") s = labelDevice(v);

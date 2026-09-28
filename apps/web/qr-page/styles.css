@@ -591,6 +591,16 @@ body {
   outline-offset: 1px;
 }
 
+.note-input {
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.field-block-last {
+  margin-bottom: 0;
+}
+
 .cselect {
   position: relative;
   margin-top: var(--s1);

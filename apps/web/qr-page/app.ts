@@ -19,26 +19,8 @@ interface QrWindow {
   __BOOTSTRAP__: Bootstrap | BootstrapError | null;
 }
 
-type StepId = "symptoms" | "when" | "device" | "apps" | "wifi";
-
-const STEP_TITLE: Record<StepId, string> = {
-  symptoms: "What happened?",
-  when: "When?",
-  device: "Which device?",
-  apps: "Which apps?",
-  wifi: "Which Wi‑Fi?",
-};
-
 const boot = (window as unknown as QrWindow).__BOOTSTRAP__;
 const root = document.getElementById("app")!;
-
-if (!boot || boot.ok !== true) {
-  root.innerHTML = `<div class="card"><h2>This link isn’t valid</h2><p class="hint">${
-    boot && "error" in boot ? escapeHtml(boot.error) : "Ask Network Ops for a fresh QR code."
-  }</p></div>`;
-} else {
-  void run(boot);
-}
 
 function escapeHtml(s: string): string {
   return s
@@ -121,17 +103,6 @@ function friendlySubmitError(code: string): string {
   return code;
 }
 
-/** Soft pre-select from UA — user can still change it. */
-function guessDevice(): string {
-  const ua = navigator.userAgent;
-  if (/iPhone|iPad|iPod/i.test(ua)) return "iphone";
-  if (/Android/i.test(ua)) return "android";
-  if (/Windows/i.test(ua)) return "windows";
-  if (/Macintosh|Mac OS X/i.test(ua)) return "mac";
-  if (/Linux/i.test(ua)) return "linux";
-  return "unknown";
-}
-
 function locationLine(label: string, floor: string | null | undefined): string {
   if (floor && floor.trim() && !label.toLowerCase().includes(floor.toLowerCase())) {
     return `${floor.trim()} · ${label}`;
@@ -180,6 +151,7 @@ function formatDateLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+
 async function run(b: Bootstrap) {
   let started = Date.now();
   let zoneId = b.zone.id;
@@ -189,6 +161,7 @@ async function run(b: Bootstrap) {
   const symptoms = new Set<string>();
   const apps = new Set<string>();
   let otherApp = "";
+  let note = "";
   let whenBucket = "now";
   const now = new Date();
   let exactTouched = false;
@@ -200,18 +173,13 @@ async function run(b: Bootstrap) {
   let outsideCloser: ((e: Event) => void) | null = null;
   let calYear = now.getFullYear();
   let calMonth = now.getMonth();
-  let deviceClass = guessDevice();
-  let wifiContext = "unknown";
   let errorMsg = "";
   let phase: "form" | "done" = "form";
   let recentCount = 0;
   let alreadySubmitted = false;
   let busy = false;
-  let stepIndex = 0;
-  const steps: StepId[] = ["symptoms", "when", "device", "apps", "wifi"];
-  let renderedStep: StepId | null = null;
 
-  const draftKey = `norrsken_draft_v2_${b.zone.id}`;
+  const draftKey = `norrsken_draft_v3_${b.zone.id}`;
 
   function saveDraft() {
     try {
@@ -225,14 +193,12 @@ async function run(b: Bootstrap) {
           symptoms: [...symptoms],
           apps: [...apps],
           otherApp,
+          note,
           whenBucket,
           exactTouched,
           exactDate: exactDate.toISOString(),
           exactHour,
           exactMinute,
-          deviceClass,
-          wifiContext,
-          stepIndex,
           started,
         }),
       );
@@ -261,14 +227,12 @@ async function run(b: Bootstrap) {
         symptoms?: string[];
         apps?: string[];
         otherApp?: string;
+        note?: string;
         whenBucket?: string;
         exactTouched?: boolean;
         exactDate?: string;
         exactHour?: number;
         exactMinute?: number;
-        deviceClass?: string;
-        wifiContext?: string;
-        stepIndex?: number;
         started?: number;
       };
       if (d.zoneId) {
@@ -286,6 +250,7 @@ async function run(b: Bootstrap) {
         d.apps.forEach((a) => apps.add(a));
       }
       if (typeof d.otherApp === "string") otherApp = d.otherApp;
+      if (typeof d.note === "string") note = d.note;
       if (typeof d.whenBucket === "string") whenBucket = d.whenBucket;
       if (typeof d.exactTouched === "boolean") exactTouched = d.exactTouched;
       if (typeof d.exactDate === "string") {
@@ -298,11 +263,6 @@ async function run(b: Bootstrap) {
       }
       if (typeof d.exactHour === "number") exactHour = d.exactHour;
       if (typeof d.exactMinute === "number") exactMinute = d.exactMinute;
-      if (typeof d.deviceClass === "string") deviceClass = d.deviceClass;
-      if (typeof d.wifiContext === "string") wifiContext = d.wifiContext;
-      if (typeof d.stepIndex === "number" && d.stepIndex >= 0 && d.stepIndex < steps.length) {
-        stepIndex = d.stepIndex;
-      }
       if (typeof d.started === "number" && d.started > 0 && d.started <= Date.now()) {
         started = d.started;
       }
@@ -313,8 +273,6 @@ async function run(b: Bootstrap) {
 
   restoreDraft();
 
-  // After draft restore: if this browser already submitted for the current zone
-  // within the rate window, skip the form (server still enforces limits).
   {
     const prior = readDone(zoneId);
     if (prior) {
@@ -344,38 +302,18 @@ async function run(b: Bootstrap) {
 
   function setBusyUi(on: boolean) {
     busy = on;
-    root.querySelectorAll<HTMLButtonElement>("[data-action='next'], [data-action='back']").forEach((btn) => {
-      btn.disabled = on;
-    });
-    const next = root.querySelector<HTMLButtonElement>("[data-action='next']");
+    const next = root.querySelector<HTMLButtonElement>("[data-action='submit']");
     if (next) {
-      const total = steps.length;
-      next.textContent = on
-        ? "Saving…"
-        : stepIndex === total - 1
-          ? "Submit ✔"
-          : "Continue";
+      next.disabled = on;
+      next.textContent = on ? "Saving…" : "Submit ✔";
     }
   }
 
-  function updateProgress() {
-    const step = steps[stepIndex] ?? "symptoms";
-    const total = steps.length;
-    const current = stepIndex + 1;
-    const pct = Math.round((current / total) * 100);
-    const title = root.querySelector(".progress-title");
-    const count = root.querySelector(".progress-step");
-    const fill = root.querySelector<HTMLElement>(".progress-fill");
-    const wrap = root.querySelector(".progress");
-    if (title) title.textContent = STEP_TITLE[step];
-    if (count) count.textContent = `${current} / ${total}`;
-    if (fill) fill.style.width = `${pct}%`;
-    if (wrap) wrap.setAttribute("aria-label", `Step ${current} of ${total}: ${STEP_TITLE[step]}`);
-  }
-
-  function syncOtherAppInput() {
-    const input = root.querySelector<HTMLInputElement>("#other-app");
-    if (input) otherApp = input.value.trim().slice(0, 80);
+  function syncTextInputs() {
+    const other = root.querySelector<HTMLInputElement>("#other-app");
+    if (other) otherApp = other.value.trim().slice(0, 80);
+    const noteEl = root.querySelector<HTMLTextAreaElement>("#note");
+    if (noteEl) note = noteEl.value.trim().slice(0, 400);
   }
 
   function clearOutside() {
@@ -396,14 +334,6 @@ async function run(b: Bootstrap) {
       return;
     }
 
-    const step = steps[stepIndex] ?? "symptoms";
-    const total = steps.length;
-    const current = stepIndex + 1;
-    const pct = Math.round((current / total) * 100);
-    const stepChanged = renderedStep !== step;
-    renderedStep = step;
-    const place = locationLine(zoneLabel, zoneFloor);
-
     root.innerHTML = `
       <div class="shell">
         <header class="header">
@@ -411,50 +341,76 @@ async function run(b: Bootstrap) {
             <img class="logo-norrsken" src="/qr/norrsken-logo-dark.svg" alt="Norrsken" />
             <span class="eyebrow">Network feedback</span>
           </div>
-          ${
-            step === "symptoms"
-              ? ""
-              : `<p class="place-quiet">${escapeHtml(place)}</p>`
-          }
         </header>
-
-        <div class="progress" aria-label="Step ${current} of ${total}: ${STEP_TITLE[step]}">
-          <div class="progress-meta">
-            <span class="progress-title">${STEP_TITLE[step]}</span>
-            <span class="progress-step">${current} / ${total}</span>
-          </div>
-          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-        </div>
 
         <input class="hp" tabindex="-1" autocomplete="off" name="website" id="hp" />
 
-        <section class="card step-card${stepChanged ? " step-enter" : ""}" id="step-card">
-          ${stepBody(step)}
+        <section class="card step-card" id="step-card">
+          ${formBody()}
           <p class="error step-error" ${errorMsg ? "" : "hidden"}>${escapeHtml(errorMsg)}</p>
           <div class="actions">
-            ${
-              stepIndex > 0
-                ? `<button type="button" class="btn" data-action="back" ${busy ? "disabled" : ""}>Back</button>`
-                : `<span class="actions-spacer"></span>`
-            }
-            <button type="button" class="btn btn-primary" data-action="next" ${busy ? "disabled" : ""}>
-              ${busy ? "Saving…" : stepIndex === total - 1 ? "Submit ✔" : "Continue"}
+            <button type="button" class="btn btn-primary" data-action="submit" ${busy ? "disabled" : ""}>
+              ${busy ? "Saving…" : "Submit ✔"}
             </button>
           </div>
         </section>
         ${privacyLine()}
       </div>
-
       ${poweredByHtml()}
     `;
     bind();
   }
 
-  function zonePickerHtml(): string {
+  function formBody(): string {
+    const showOther = apps.has("other");
     return `
       <div class="field-block">
-        <h2 class="field-title">Where were/are you?</h2>
-        <div class="chips chips-pills zone-picks" role="listbox" aria-label="Where were/are you?">
+        <h2 class="field-title">What happened?</h2>
+        <p class="hint">Tap one or more (max 3)</p>
+        <div class="chips chips-pills">
+          ${b.symptoms
+            .map(
+              (s) =>
+                `<button type="button" class="chip${symptoms.has(s.id) ? " on" : ""}" data-symptom="${escapeHtml(s.id)}">${escapeHtml(s.label)}</button>`,
+            )
+            .join("")}
+        </div>
+      </div>
+      <div class="field-block">
+        <h2 class="field-title">When?</h2>
+        <p class="hint">Pick the closest time</p>
+        <div class="chips chips-3">
+          ${b.when
+            .map(
+              (w) =>
+                `<button type="button" class="chip${whenBucket === w.id ? " on" : ""}" data-when="${escapeHtml(w.id)}">${escapeHtml(w.label)}</button>`,
+            )
+            .join("")}
+        </div>
+        ${exactTimeHtml()}
+      </div>
+      <div class="field-block">
+        <h2 class="field-title">Which apps?</h2>
+        <p class="hint">Optional — tap any that apply</p>
+        <div class="chips chips-pills">
+          ${b.apps
+            .map(
+              (a) =>
+                `<button type="button" class="chip${apps.has(a.id) ? " on" : ""}" data-app="${escapeHtml(a.id)}">${escapeHtml(a.label)}</button>`,
+            )
+            .join("")}
+        </div>
+        <div class="other-app" ${showOther ? "" : "hidden"}>
+          <label for="other-app">Which other app? <span class="hint-inline">(optional)</span></label>
+          <input id="other-app" class="text-input" type="text" maxlength="80"
+            placeholder="e.g. Notion, Dropbox…"
+            value="${escapeHtml(otherApp)}"
+            autocomplete="off" />
+        </div>
+      </div>
+      <div class="field-block">
+        <h2 class="field-title">Where?</h2>
+        <div class="chips chips-pills zone-picks" role="listbox" aria-label="Where?">
           ${b.zones
             .map(
               (z) =>
@@ -462,6 +418,11 @@ async function run(b: Bootstrap) {
             )
             .join("")}
         </div>
+      </div>
+      <div class="field-block field-block-last">
+        <h2 class="field-title">Anything else? <span class="hint-inline">(optional)</span></h2>
+        <textarea id="note" class="text-input note-input" maxlength="400" rows="3"
+          placeholder="Only if the answers above don’t cover it">${escapeHtml(note)}</textarea>
       </div>`;
   }
 
@@ -522,112 +483,33 @@ async function run(b: Bootstrap) {
     return `<div class="wheel" data-wheel="${kind}" role="listbox" aria-label="${label}">${html}</div>`;
   }
 
-  function stepBody(step: StepId): string {
-    if (step === "symptoms") {
-      return `
-        ${zonePickerHtml()}
-        <h2 class="field-title">What happened?</h2>
-        <p class="hint">Tap one or more (max 3)</p>
-        <div class="chips chips-pills" data-group="symptoms">
-          ${b.symptoms
-            .map(
-              (s) =>
-                `<button type="button" class="chip${symptoms.has(s.id) ? " on" : ""}" data-symptom="${escapeHtml(s.id)}">${escapeHtml(s.label)}</button>`,
-            )
-            .join("")}
-        </div>`;
-    }
-    if (step === "when") {
-      return `
-        <p class="hint">Pick the closest time</p>
-        <div class="chips chips-3" data-group="when">
-          ${b.when
-            .map(
-              (w) =>
-                `<button type="button" class="chip${whenBucket === w.id ? " on" : ""}" data-when="${escapeHtml(w.id)}">${escapeHtml(w.label)}</button>`,
-            )
-            .join("")}
-        </div>
-        <div class="when-exact">
-          <p class="hint">Exact time <span class="hint-inline">(optional)</span></p>
-          <div class="when-exact-row">
-            <div class="cal-anchor">
-              <button type="button" class="when-date" data-action="toggle-cal" aria-expanded="${calOpen ? "true" : "false"}" aria-label="Choose date">
-                <svg class="cal-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="3.5" y="5" width="17" height="15.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
-                  <path d="M3.5 10h17M8 3.5v3.5M16 3.5v3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
-                <span>${escapeHtml(formatDateLabel(exactDate))}</span>
-              </button>
-              ${calendarHtml()}
+  function exactTimeHtml(): string {
+    return `
+      <div class="when-exact">
+        <p class="hint">Exact time <span class="hint-inline">(optional)</span></p>
+        <div class="when-exact-row">
+          <div class="cal-anchor">
+            <button type="button" class="when-date" data-action="toggle-cal" aria-expanded="${calOpen ? "true" : "false"}" aria-label="Choose date">
+              <svg class="cal-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3.5" y="5" width="17" height="15.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M3.5 10h17M8 3.5v3.5M16 3.5v3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              <span>${escapeHtml(formatDateLabel(exactDate))}</span>
+            </button>
+            ${calendarHtml()}
+          </div>
+          <div class="time-pair">
+            <div class="time-anchor${timeOpen === "hour" ? " open" : ""}">
+              <button type="button" class="time-face" data-action="toggle-hour" aria-expanded="${timeOpen === "hour" ? "true" : "false"}" aria-label="Choose hour">${pad2(exactHour)}</button>
+              ${timeOpen === "hour" ? `<div class="time-pop">${wheelHtml("hour")}</div>` : ""}
             </div>
-            <div class="time-pair">
-              <div class="time-anchor${timeOpen === "hour" ? " open" : ""}">
-                <button type="button" class="time-face" data-action="toggle-hour" aria-expanded="${timeOpen === "hour" ? "true" : "false"}" aria-label="Choose hour">${pad2(exactHour)}</button>
-                ${timeOpen === "hour" ? `<div class="time-pop">${wheelHtml("hour")}</div>` : ""}
-              </div>
-              <span class="time-colon" aria-hidden="true">:</span>
-              <div class="time-anchor${timeOpen === "minute" ? " open" : ""}">
-                <button type="button" class="time-face" data-action="toggle-minute" aria-expanded="${timeOpen === "minute" ? "true" : "false"}" aria-label="Choose minute">${pad2(exactMinute)}</button>
-                ${timeOpen === "minute" ? `<div class="time-pop">${wheelHtml("minute")}</div>` : ""}
-              </div>
+            <span class="time-colon" aria-hidden="true">:</span>
+            <div class="time-anchor${timeOpen === "minute" ? " open" : ""}">
+              <button type="button" class="time-face" data-action="toggle-minute" aria-expanded="${timeOpen === "minute" ? "true" : "false"}" aria-label="Choose minute">${pad2(exactMinute)}</button>
+              ${timeOpen === "minute" ? `<div class="time-pop">${wheelHtml("minute")}</div>` : ""}
             </div>
           </div>
-        </div>`;
-    }
-    if (step === "device") {
-      const devices = b.devices?.length
-        ? b.devices
-        : [
-            { id: "iphone", label: "iPhone" },
-            { id: "android", label: "Android phone" },
-            { id: "windows", label: "Windows laptop" },
-            { id: "mac", label: "Mac" },
-            { id: "linux", label: "Linux laptop" },
-            { id: "unknown", label: "Not sure" },
-          ];
-      const chip = (id: string) => {
-        const d = devices.find((x) => x.id === id);
-        if (!d) return "";
-        return `<button type="button" class="chip${deviceClass === d.id ? " on" : ""}" data-device="${escapeHtml(d.id)}">${escapeHtml(d.label)}</button>`;
-      };
-      return `
-        <p class="hint">Where did you notice the problem?</p>
-        <div class="device-lines">
-          <div class="device-line phones">${chip("iphone")}${chip("android")}</div>
-          <div class="device-line laptops">${chip("windows")}${chip("mac")}${chip("linux")}</div>
-          <div class="device-line other">${chip("unknown")}</div>
-        </div>`;
-    }
-    if (step === "apps") {
-      const showOther = apps.has("other");
-      return `
-        <p class="hint">Optional — tap any that apply</p>
-        <div class="chips chips-pills" data-group="apps">
-          ${b.apps
-            .map(
-              (a) =>
-                `<button type="button" class="chip${apps.has(a.id) ? " on" : ""}" data-app="${escapeHtml(a.id)}">${escapeHtml(a.label)}</button>`,
-            )
-            .join("")}
         </div>
-        <div class="other-app" ${showOther ? "" : "hidden"}>
-          <label for="other-app">Which other app? <span class="hint-inline">(optional)</span></label>
-          <input id="other-app" class="text-input" type="text" maxlength="80"
-            placeholder="e.g. Notion, Dropbox…"
-            value="${escapeHtml(otherApp)}"
-            autocomplete="off" />
-        </div>`;
-    }
-    return `
-      <p class="hint">Which network were you on?</p>
-      <div class="chips" data-group="wifi">
-        ${b.ssids
-          .map(
-            (s) =>
-              `<button type="button" class="chip${wifiContext === s.id ? " on" : ""}" data-wifi="${escapeHtml(s.id)}">${escapeHtml(s.label)}</button>`,
-          )
-          .join("")}
       </div>`;
   }
 
@@ -675,6 +557,10 @@ async function run(b: Bootstrap) {
       otherApp = (e.target as HTMLInputElement).value.trim().slice(0, 80);
       saveDraft();
     });
+    root.querySelector<HTMLTextAreaElement>("#note")?.addEventListener("input", (e) => {
+      note = (e.target as HTMLTextAreaElement).value.slice(0, 400);
+      saveDraft();
+    });
     root.querySelectorAll<HTMLButtonElement>("[data-when]").forEach((btn) => {
       btn.addEventListener("click", () => {
         whenBucket = btn.dataset.when!;
@@ -683,46 +569,22 @@ async function run(b: Bootstrap) {
         saveDraft();
       });
     });
-    root.querySelectorAll<HTMLButtonElement>("[data-device]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        deviceClass = btn.dataset.device!;
-        root.querySelectorAll<HTMLButtonElement>("[data-device]").forEach((el) => el.classList.remove("on"));
-        btn.classList.add("on");
-        setError("");
-        saveDraft();
-      });
-    });
-    root.querySelectorAll<HTMLButtonElement>("[data-wifi]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        wifiContext = btn.dataset.wifi!;
-        root.querySelectorAll<HTMLButtonElement>("[data-wifi]").forEach((el) => el.classList.remove("on"));
-        btn.classList.add("on");
-        saveDraft();
-      });
-    });
-    root.querySelector("[data-action='next']")?.addEventListener("click", () => void goNext());
-    root.querySelector("[data-action='back']")?.addEventListener("click", () => {
-      syncOtherAppInput();
-      if (stepIndex > 0) {
-        stepIndex -= 1;
-        setError("");
-        saveDraft();
-        render();
-      }
-    });
     root.querySelector("[data-action='toggle-cal']")?.addEventListener("click", () => {
       calOpen = !calOpen;
       if (calOpen) timeOpen = null;
+      syncTextInputs();
       render();
     });
     root.querySelector("[data-action='toggle-hour']")?.addEventListener("click", () => {
       timeOpen = timeOpen === "hour" ? null : "hour";
       if (timeOpen) calOpen = false;
+      syncTextInputs();
       render();
     });
     root.querySelector("[data-action='toggle-minute']")?.addEventListener("click", () => {
       timeOpen = timeOpen === "minute" ? null : "minute";
       if (timeOpen) calOpen = false;
+      syncTextInputs();
       render();
     });
     if (calOpen || timeOpen) {
@@ -732,6 +594,7 @@ async function run(b: Bootstrap) {
         if (t.closest(".cal-anchor, .time-anchor")) return;
         calOpen = false;
         timeOpen = null;
+        syncTextInputs();
         render();
       };
       document.addEventListener("pointerdown", outsideCloser);
@@ -750,6 +613,7 @@ async function run(b: Bootstrap) {
             calYear += 1;
           } else calMonth += 1;
         }
+        syncTextInputs();
         render();
       });
     });
@@ -760,6 +624,7 @@ async function run(b: Bootstrap) {
         exactTouched = true;
         calOpen = false;
         clampExactToNow();
+        syncTextInputs();
         saveDraft();
         render();
       });
@@ -771,6 +636,7 @@ async function run(b: Bootstrap) {
         exactTouched = true;
         timeOpen = null;
         clampExactToNow();
+        syncTextInputs();
         saveDraft();
         render();
       });
@@ -781,6 +647,7 @@ async function run(b: Bootstrap) {
         exactMinute = Number(btn.dataset.minute);
         exactTouched = true;
         timeOpen = null;
+        syncTextInputs();
         saveDraft();
         render();
       });
@@ -807,87 +674,19 @@ async function run(b: Bootstrap) {
           render();
           return;
         }
+        syncTextInputs();
         saveDraft();
         render();
       });
     });
-  }
-
-  async function submitReport(): Promise<boolean> {
-    if (symptoms.size === 0) {
-      setError("Pick at least one symptom to continue.");
-      return false;
-    }
-    // Client already-done guard (server still enforces rate limits)
-    const priorHere = readDone(zoneId);
-    if (priorHere) {
-      recentCount = priorHere.recentCount;
-      alreadySubmitted = true;
-      phase = "done";
-      clearDraft();
-      render();
-      return false;
-    }
-    setBusyUi(true);
-    setError("");
-    try {
-      const fill_ms = await waitMinFill();
-      const hp = (document.getElementById("hp") as HTMLInputElement | null)?.value ?? "";
-      if (otherApp && !apps.has("other")) apps.add("other");
-      const clarifiers = clarifierPayload();
-      const occurredAt = occurredAtPayload();
-      const res = await fetch("/api/reports", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          zone_id: zoneId,
-          zone_source: zoneSource,
-          channel: "qr",
-          symptoms: [...symptoms],
-          apps: [...apps],
-          when_bucket: whenBucket,
-          ...(occurredAt ? { occurred_at: occurredAt } : {}),
-          wifi_context: wifiContext,
-          clarifiers,
-          device_class: deviceClass,
-          fill_ms,
-          session_token: sessionToken(),
-          website: hp,
-        }),
-      });
-      const data = (await res.json()) as {
-        report_id?: string;
-        recent_count?: number;
-        error?: string;
-      };
-      if (!res.ok) {
-        const code = data.error || "save_failed";
-        if (code === "rate_limited_zone") {
-          markDone(zoneId, recentCount);
-          alreadySubmitted = true;
-          phase = "done";
-          clearDraft();
-          render();
-          return false;
-        }
-        throw new Error(friendlySubmitError(code));
-      }
-      recentCount = data.recent_count ?? 0;
-      markDone(zoneId, recentCount);
-      alreadySubmitted = false;
-      clearDraft();
-      return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save. Try again.");
-      return false;
-    } finally {
-      setBusyUi(false);
-    }
+    root.querySelector("[data-action='submit']")?.addEventListener("click", () => void submitReport());
   }
 
   function clarifierPayload(): Record<string, string> {
-    if (apps.has("other") && otherApp) return { other_app: otherApp };
-    return {};
+    const out: Record<string, string> = {};
+    if (apps.has("other") && otherApp) out.other_app = otherApp;
+    if (note) out.note = note;
+    return out;
   }
 
   function occurredAtPayload(): string | undefined {
@@ -906,39 +705,74 @@ async function run(b: Bootstrap) {
     return d.toISOString();
   }
 
-  async function goNext() {
+  async function submitReport() {
     if (busy) return;
-    const step = steps[stepIndex];
+    syncTextInputs();
     setError("");
-    syncOtherAppInput();
-
-    if (step === "symptoms" && symptoms.size === 0) {
-      setError("Pick at least one symptom to continue.");
+    if (symptoms.size === 0) {
+      setError("Pick at least one thing that happened.");
       return;
     }
-    if (step === "device" && !deviceClass) {
-      setError("Pick which device you were on.");
-      return;
-    }
-
-    // Only write to the server on the final Submit — earlier steps stay local
-    // so a mid-flow API restart can't leave orphan rows.
-    if (stepIndex >= steps.length - 1) {
-      const ok = await submitReport();
-      if (!ok) return;
-      const card = root.querySelector(".step-card");
-      card?.classList.add("fade-out");
-      await new Promise((r) => setTimeout(r, 220));
+    const priorHere = readDone(zoneId);
+    if (priorHere) {
+      recentCount = priorHere.recentCount;
+      alreadySubmitted = true;
       phase = "done";
       clearDraft();
       render();
       return;
     }
-
-    stepIndex += 1;
-    saveDraft();
-    updateProgress();
-    render();
+    setBusyUi(true);
+    try {
+      const fill_ms = await waitMinFill();
+      const hp = (document.getElementById("hp") as HTMLInputElement | null)?.value ?? "";
+      if (otherApp && !apps.has("other")) apps.add("other");
+      const occurredAt = occurredAtPayload();
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          zone_id: zoneId,
+          zone_source: zoneSource,
+          channel: "qr",
+          symptoms: [...symptoms],
+          apps: [...apps],
+          when_bucket: whenBucket,
+          ...(occurredAt ? { occurred_at: occurredAt } : {}),
+          clarifiers: clarifierPayload(),
+          fill_ms,
+          session_token: sessionToken(),
+          website: hp,
+        }),
+      });
+      const data = (await res.json()) as {
+        report_id?: string;
+        recent_count?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        const code = data.error || "save_failed";
+        if (code === "rate_limited_zone") {
+          markDone(zoneId, recentCount);
+          alreadySubmitted = true;
+          phase = "done";
+          clearDraft();
+          render();
+          return;
+        }
+        throw new Error(friendlySubmitError(code));
+      }
+      recentCount = data.recent_count ?? 0;
+      markDone(zoneId, recentCount);
+      alreadySubmitted = false;
+      clearDraft();
+      phase = "done";
+      render();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save. Try again.");
+    } finally {
+      setBusyUi(false);
+    }
   }
 
   render();
@@ -980,4 +814,16 @@ function doneBlock(recentCount: number, already = false): string {
       <p>${escapeHtml(body)}</p>
       <p class="status">${escapeHtml(status)}</p>
     </div>`;
+}
+
+if (!boot || boot.ok !== true) {
+  root.innerHTML = `<div class="card"><h2>This link isn’t valid</h2><p class="hint">${
+    boot && "error" in boot ? escapeHtml(boot.error) : "Ask Network Ops for a fresh QR code."
+  }</p></div>`;
+} else {
+  void run(boot).catch((e) => {
+    root.innerHTML = `<div class="card"><h2>Something went wrong</h2><p class="hint">${escapeHtml(
+      e instanceof Error ? e.message : "Could not open this form.",
+    )}</p></div>`;
+  });
 }
