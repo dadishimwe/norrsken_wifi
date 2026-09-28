@@ -196,6 +196,8 @@ async function run(b: Bootstrap) {
   let exactHour = now.getHours();
   let exactMinute = now.getMinutes();
   let calOpen = false;
+  let timeOpen: "hour" | "minute" | null = null;
+  let outsideCloser: ((e: Event) => void) | null = null;
   let calYear = now.getFullYear();
   let calMonth = now.getMonth();
   let deviceClass = guessDevice();
@@ -376,7 +378,14 @@ async function run(b: Bootstrap) {
     if (input) otherApp = input.value.trim().slice(0, 80);
   }
 
+  function clearOutside() {
+    if (!outsideCloser) return;
+    document.removeEventListener("pointerdown", outsideCloser);
+    outsideCloser = null;
+  }
+
   function render() {
+    clearOutside();
     if (phase === "done") {
       root.innerHTML = `
         <div class="shell shell-done">
@@ -432,8 +441,8 @@ async function run(b: Bootstrap) {
               ${busy ? "Saving…" : stepIndex === total - 1 ? "Submit ✔" : "Continue"}
             </button>
           </div>
-          ${privacyLine()}
         </section>
+        ${privacyLine()}
       </div>
 
       ${poweredByHtml()}
@@ -543,13 +552,25 @@ async function run(b: Bootstrap) {
           <p class="hint">Exact time <span class="hint-inline">(optional)</span></p>
           <div class="when-exact-row">
             <div class="cal-anchor">
-              <button type="button" class="when-date" data-action="toggle-cal" aria-expanded="${calOpen ? "true" : "false"}">${escapeHtml(formatDateLabel(exactDate))}</button>
+              <button type="button" class="when-date" data-action="toggle-cal" aria-expanded="${calOpen ? "true" : "false"}" aria-label="Choose date">
+                <svg class="cal-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3.5" y="5" width="17" height="15.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                  <path d="M3.5 10h17M8 3.5v3.5M16 3.5v3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <span>${escapeHtml(formatDateLabel(exactDate))}</span>
+              </button>
               ${calendarHtml()}
             </div>
             <div class="time-pair">
-              ${wheelHtml("hour")}
+              <div class="time-anchor${timeOpen === "hour" ? " open" : ""}">
+                <button type="button" class="time-face" data-action="toggle-hour" aria-expanded="${timeOpen === "hour" ? "true" : "false"}" aria-label="Choose hour">${pad2(exactHour)}</button>
+                ${timeOpen === "hour" ? `<div class="time-pop">${wheelHtml("hour")}</div>` : ""}
+              </div>
               <span class="time-colon" aria-hidden="true">:</span>
-              ${wheelHtml("minute")}
+              <div class="time-anchor${timeOpen === "minute" ? " open" : ""}">
+                <button type="button" class="time-face" data-action="toggle-minute" aria-expanded="${timeOpen === "minute" ? "true" : "false"}" aria-label="Choose minute">${pad2(exactMinute)}</button>
+                ${timeOpen === "minute" ? `<div class="time-pop">${wheelHtml("minute")}</div>` : ""}
+              </div>
             </div>
           </div>
         </div>`;
@@ -691,9 +712,30 @@ async function run(b: Bootstrap) {
     });
     root.querySelector("[data-action='toggle-cal']")?.addEventListener("click", () => {
       calOpen = !calOpen;
-      saveDraft();
+      if (calOpen) timeOpen = null;
       render();
     });
+    root.querySelector("[data-action='toggle-hour']")?.addEventListener("click", () => {
+      timeOpen = timeOpen === "hour" ? null : "hour";
+      if (timeOpen) calOpen = false;
+      render();
+    });
+    root.querySelector("[data-action='toggle-minute']")?.addEventListener("click", () => {
+      timeOpen = timeOpen === "minute" ? null : "minute";
+      if (timeOpen) calOpen = false;
+      render();
+    });
+    if (calOpen || timeOpen) {
+      outsideCloser = (e: Event) => {
+        const t = e.target;
+        if (!(t instanceof Element)) return;
+        if (t.closest(".cal-anchor, .time-anchor")) return;
+        calOpen = false;
+        timeOpen = null;
+        render();
+      };
+      document.addEventListener("pointerdown", outsideCloser);
+    }
     root.querySelectorAll<HTMLButtonElement>("[data-cal]").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (btn.disabled) return;
@@ -727,6 +769,7 @@ async function run(b: Bootstrap) {
         if (btn.disabled) return;
         exactHour = Number(btn.dataset.hour);
         exactTouched = true;
+        timeOpen = null;
         clampExactToNow();
         saveDraft();
         render();
@@ -737,6 +780,7 @@ async function run(b: Bootstrap) {
         if (btn.disabled) return;
         exactMinute = Number(btn.dataset.minute);
         exactTouched = true;
+        timeOpen = null;
         saveDraft();
         render();
       });

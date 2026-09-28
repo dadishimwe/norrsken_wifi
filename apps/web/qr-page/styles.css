@@ -302,6 +302,10 @@ body {
 
 .when-date {
   appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1);
   width: 100%;
   min-height: 48px;
   border: 1px solid var(--border);
@@ -312,7 +316,12 @@ body {
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
-  text-align: center;
+}
+
+.cal-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .when-date:focus,
@@ -422,6 +431,44 @@ body {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.time-anchor {
+  position: relative;
+}
+
+.time-face {
+  appearance: none;
+  min-width: 56px;
+  min-height: 48px;
+  padding: 0 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.time-anchor.open .time-face {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+}
+
+.time-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+}
+
+.time-pop .wheel {
+  height: 160px;
 }
 
 .time-colon {
