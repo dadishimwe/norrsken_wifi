@@ -133,6 +133,22 @@ export async function setOpsUserPassword(
   ]);
 }
 
+export async function setOpsUserUsername(
+  db: Pool,
+  id: string,
+  username: string,
+): Promise<OpsUser | null> {
+  const { rows } = await db.query<OpsUser>(
+    `
+    update ops_user set username = $2
+    where id = $1
+    returning id, username, display_name, role, active, created_at, last_login_at
+    `,
+    [id, username.toLowerCase().trim()],
+  );
+  return rows[0] ?? null;
+}
+
 export async function createOpsSession(
   db: Pool,
   userId: string,

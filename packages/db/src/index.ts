@@ -43,6 +43,7 @@ export {
   getOpsUserById,
   setOpsUserActive,
   setOpsUserPassword,
+  setOpsUserUsername,
   createOpsSession,
   revokeOpsSession,
   resolveOpsSession,

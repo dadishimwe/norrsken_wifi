@@ -15,6 +15,7 @@ import {
   revokeOpsSession,
   setOpsUserActive,
   setOpsUserPassword,
+  setOpsUserUsername,
   updateZone,
   verifyPassword,
   type OpsUser,
@@ -229,6 +230,13 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         .object({
           active: z.boolean().optional(),
           password: z.string().min(12).max(128).optional(),
+          username: z
+            .string()
+            .trim()
+            .min(1)
+            .max(64)
+            .regex(/^[a-z0-9._-]+$/i, "username: letters, numbers, . _ -")
+            .optional(),
         })
         .safeParse(req.body);
       if (!body.success) return reply.code(400).send({ error: "invalid_body" });
@@ -238,6 +246,10 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       }
 
       let user = null;
+      if (body.data.username) {
+        user = await setOpsUserUsername(db, id, body.data.username);
+        if (!user) return reply.code(404).send({ error: "not_found" });
+      }
       if (typeof body.data.active === "boolean") {
         user = await setOpsUserActive(db, id, body.data.active);
       }
@@ -249,6 +261,9 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       return { user };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
+        return reply.code(409).send({ error: "username_taken" });
+      }
       throw err;
     }
   });

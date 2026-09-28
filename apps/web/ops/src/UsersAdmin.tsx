@@ -17,6 +17,8 @@ export function UsersAdmin() {
   const [role, setRole] = useState<"admin" | "viewer">("viewer");
   const [busy, setBusy] = useState(false);
   const [resetUser, setResetUser] = useState<OpsUser | null>(null);
+  const [nextUsername, setNextUsername] = useState("");
+  const [confirmUsername, setConfirmUsername] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [resetError, setResetError] = useState<string | null>(null);
@@ -75,6 +77,8 @@ export function UsersAdmin() {
 
   function openReset(u: OpsUser) {
     setResetUser(u);
+    setNextUsername(u.username);
+    setConfirmUsername("");
     setNextPassword("");
     setConfirmPassword("");
     setResetError(null);
@@ -82,33 +86,55 @@ export function UsersAdmin() {
 
   function closeReset() {
     setResetUser(null);
+    setNextUsername("");
+    setConfirmUsername("");
     setNextPassword("");
     setConfirmPassword("");
     setResetError(null);
   }
 
-  async function resetPassword(e: FormEvent) {
+  async function saveAccount(e: FormEvent) {
     e.preventDefault();
     if (!resetUser) return;
-    if (nextPassword.length < 12) {
-      setResetError("Password must be at least 12 characters.");
+    const usernameNext = nextUsername.trim().toLowerCase();
+    const usernameChanged = usernameNext !== resetUser.username;
+    const passwordFilled = nextPassword.length > 0 || confirmPassword.length > 0;
+    if (!/^[a-z0-9._-]+$/i.test(usernameNext)) {
+      setResetError("Username can use letters, numbers, dots, underscores, and hyphens.");
       return;
     }
-    if (nextPassword !== confirmPassword) {
-      setResetError("Passwords do not match.");
+    if (usernameNext !== confirmUsername.trim().toLowerCase()) {
+      setResetError("Usernames do not match.");
       return;
+    }
+    if (!usernameChanged && !passwordFilled) {
+      setResetError("Change the username or enter a new password.");
+      return;
+    }
+    if (passwordFilled) {
+      if (nextPassword.length < 12) {
+        setResetError("Password must be at least 12 characters.");
+        return;
+      }
+      if (nextPassword !== confirmPassword) {
+        setResetError("Passwords do not match.");
+        return;
+      }
     }
     setBusy(true);
     setResetError(null);
     try {
-      await opsApi.patchUser(resetUser.id, { password: nextPassword });
-      const name = resetUser.username;
+      await opsApi.patchUser(resetUser.id, {
+        ...(usernameChanged ? { username: usernameNext } : {}),
+        ...(passwordFilled ? { password: nextPassword } : {}),
+      });
       closeReset();
-      setToast(`Password updated for @${name}`);
+      setToast(`Account updated for @${usernameNext}`);
       window.setTimeout(() => setToast(null), 2200);
       await reload();
     } catch (err) {
-      setResetError(err instanceof Error ? err.message : "update_failed");
+      const msg = err instanceof Error ? err.message : "update_failed";
+      setResetError(msg === "username_taken" ? "That username is already in use." : msg);
     } finally {
       setBusy(false);
     }
@@ -131,14 +157,37 @@ export function UsersAdmin() {
             aria-modal="true"
             aria-labelledby="reset-title"
             onMouseDown={(e) => e.stopPropagation()}
-            onSubmit={(e) => void resetPassword(e)}
+            onSubmit={(e) => void saveAccount(e)}
           >
-            <h3 id="reset-title">Reset password</h3>
+            <h3 id="reset-title">Edit account</h3>
             <p>
-              Set a new password for @{resetUser.username}. They will use it the next time they sign
-              in.
+              Change the username for @{resetUser.username}, set a new password, or both. Leave the
+              password fields blank to keep the current password.
             </p>
             {resetError ? <p className="error">{resetError}</p> : null}
+            <div className="field">
+              <label htmlFor="edit-username">Username</label>
+              <input
+                id="edit-username"
+                autoComplete="off"
+                value={nextUsername}
+                onChange={(e) => setNextUsername(e.target.value)}
+                pattern="[A-Za-z0-9._-]+"
+                required
+                autoFocus
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="edit-username-confirm">Confirm username</label>
+              <input
+                id="edit-username-confirm"
+                autoComplete="off"
+                value={confirmUsername}
+                onChange={(e) => setConfirmUsername(e.target.value)}
+                pattern="[A-Za-z0-9._-]+"
+                required
+              />
+            </div>
             <div className="field">
               <label htmlFor="reset-password">New password</label>
               <input
@@ -147,9 +196,6 @@ export function UsersAdmin() {
                 autoComplete="new-password"
                 value={nextPassword}
                 onChange={(e) => setNextPassword(e.target.value)}
-                minLength={12}
-                required
-                autoFocus
               />
             </div>
             <div className="field">
@@ -160,8 +206,6 @@ export function UsersAdmin() {
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                minLength={12}
-                required
               />
             </div>
             <div className="modal-actions">
@@ -169,7 +213,7 @@ export function UsersAdmin() {
                 Cancel
               </button>
               <button className="btn btn-primary" type="submit" disabled={busy}>
-                {busy ? "Saving…" : "Update password"}
+                {busy ? "Saving…" : "Save"}
               </button>
             </div>
           </form>
@@ -253,7 +297,7 @@ export function UsersAdmin() {
                 <td>{u.active === false ? "disabled" : "active"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   <button className="btn btn-ghost" type="button" onClick={() => openReset(u)}>
-                    Reset pw
+                    Edit
                   </button>{" "}
                   <button className="btn btn-ghost" type="button" onClick={() => toggleActive(u)}>
                     {u.active === false ? "Enable" : "Disable"}
