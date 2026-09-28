@@ -56,6 +56,27 @@ function labelAppsForExport(
     .join("|");
 }
 
+function labelWifi(v: unknown): string {
+  const id = String(v ?? "");
+  const map: Record<string, string> = {
+    member_wifi: "Member Wi-Fi",
+    guest_wifi: "Guest Wi-Fi",
+    wired: "Wired",
+    unknown: "Not sure",
+  };
+  return map[id] ?? (id ? id.replaceAll("_", " ") : "");
+}
+
+function labelWhenBucket(v: unknown): string {
+  const id = String(v ?? "");
+  const map: Record<string, string> = {
+    now: "Happening now",
+    recent: "Just ended",
+    earlier: "Earlier today",
+  };
+  return map[id] ?? id.replaceAll("_", " ");
+}
+
 function labelDevice(v: unknown): string {
   const id = String(v ?? "");
   const map: Record<string, string> = {
@@ -490,6 +511,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         "symptoms",
         "apps",
         "when_bucket",
+        "occurred_at",
         "wifi_context",
         "clarifiers",
         "device_class",
@@ -508,6 +530,8 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
               else if (h === "symptoms") s = labelList(v, SYMPTOM_LABELS as Record<string, string>);
               else if (h === "apps")
                 s = labelAppsForExport(v, r.clarifiers, APP_LABELS as Record<string, string>);
+              else if (h === "when_bucket") s = labelWhenBucket(v);
+              else if (h === "wifi_context") s = labelWifi(v);
               else if (h === "clarifiers" && typeof v === "object")
                 s = formatClarifiersDisplay(v as Record<string, unknown>);
               else if (h === "device_class") s = labelDevice(v);

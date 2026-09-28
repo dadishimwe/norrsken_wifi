@@ -35,6 +35,7 @@ export type ReportRow = {
   symptoms: string[];
   apps: string[];
   when_bucket: string;
+  occurred_at?: string | null;
   wifi_context: string;
   clarifiers?: Record<string, unknown>;
   device_class?: string | null;

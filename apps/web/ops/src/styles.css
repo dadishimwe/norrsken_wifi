@@ -121,6 +121,10 @@ a {
   height: 56px;
 }
 
+.app-shell .partner-logo-footer {
+  height: 28px;
+}
+
 .powered-by {
   display: flex;
   align-items: center;

@@ -67,6 +67,15 @@ function occurredAtFromBucket(bucket: string): Date | null {
   return null;
 }
 
+/** Exact guest time when they set one. Otherwise leave occurred_at empty. */
+function resolveOccurredAt(explicit?: string): Date | null {
+  if (!explicit) return null;
+  const d = new Date(explicit);
+  if (Number.isNaN(d.getTime())) throw new HttpError(400, "bad_occurred_at");
+  if (d.getTime() > Date.now() + 60_000) throw new HttpError(400, "occurred_in_future");
+  return d;
+}
+
 function boostWeight(base: number, clarifiers: Record<string, unknown>): number {
   if (clarifiers.same_as_incident === "yes") return Math.min(2, base * 1.5);
   return base;
@@ -128,7 +137,7 @@ export async function createReport(
 
   const reportId = randomUUID();
   const createdAt = new Date();
-  const occurredAt = occurredAtFromBucket(input.when_bucket);
+  const occurredAt = resolveOccurredAt(input.occurred_at);
 
   const client = await db.connect();
   try {

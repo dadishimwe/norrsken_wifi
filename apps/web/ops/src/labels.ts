@@ -24,6 +24,19 @@ export const APP_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+export const WIFI_LABELS: Record<string, string> = {
+  member_wifi: "Member Wi-Fi",
+  guest_wifi: "Guest Wi-Fi",
+  wired: "Wired",
+  unknown: "Not sure",
+};
+
+export const WHEN_LABELS: Record<string, string> = {
+  now: "Happening now",
+  recent: "Just ended",
+  earlier: "Earlier today",
+};
+
 export const DEVICE_LABELS: Record<string, string> = {
   iphone: "iPhone",
   android: "Android phone",
@@ -74,20 +87,49 @@ export function labelSymptom(id: string): string {
   return SYMPTOM_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
+export function labelWifi(id: string | null | undefined): string {
+  if (!id) return "—";
+  return WIFI_LABELS[id] ?? id.replaceAll("_", " ");
+}
+
+export function labelWhen(bucket: string | null | undefined, occurredAt?: string | null): string {
+  const base = (bucket && WHEN_LABELS[bucket]) || (bucket ? bucket.replaceAll("_", " ") : "—");
+  if (!occurredAt) return base;
+  const d = new Date(occurredAt);
+  if (Number.isNaN(d.getTime())) return base;
+  const pretty = d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${base} · ${pretty}`;
+}
+
+function clarifierRecord(clarifiers: unknown): Record<string, unknown> | null {
+  if (!clarifiers) return null;
+  if (typeof clarifiers === "string") {
+    try {
+      const parsed = JSON.parse(clarifiers) as unknown;
+      if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+    return null;
+  }
+  if (typeof clarifiers === "object") return clarifiers as Record<string, unknown>;
+  return null;
+}
+
 export function labelApp(id: string): string {
   return APP_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
 /** Resolve app pills — prefer custom Other text when present. */
-export function labelAppEntry(
-  id: string,
-  clarifiers?: Record<string, unknown> | null,
-): string {
+export function labelAppEntry(id: string, clarifiers?: unknown): string {
   if (id === "other") {
-    const custom =
-      clarifiers && typeof clarifiers.other_app === "string"
-        ? clarifiers.other_app.trim()
-        : "";
+    const record = clarifierRecord(clarifiers);
+    const custom = record && typeof record.other_app === "string" ? record.other_app.trim() : "";
     return custom || "Other";
   }
   return labelApp(id);
@@ -98,15 +140,16 @@ export function labelDevice(id: string | null | undefined): string {
   return DEVICE_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
-export function formatClarifiersDisplay(
-  clarifiers: Record<string, unknown> | null | undefined,
-): string {
-  if (!clarifiers || typeof clarifiers !== "object") return "";
+export function formatClarifiersDisplay(clarifiers: unknown): string {
+  const record = clarifierRecord(clarifiers);
+  if (!record) return "";
   const parts: string[] = [];
-  for (const [key, raw] of Object.entries(clarifiers)) {
+  for (const [key, raw] of Object.entries(record)) {
     if (raw == null || raw === "") continue;
-    // other_app is shown in the Apps column instead
-    if (key === "other_app") continue;
+    if (key === "other_app") {
+      parts.push(`Other app: ${String(raw).trim()}`);
+      continue;
+    }
     const value = String(raw);
     const field = CLARIFIER_FIELDS[key] ?? key.replaceAll("_", " ");
     const pretty = CLARIFIER_VALUES[key]?.[value] ?? value.replaceAll("_", " ");

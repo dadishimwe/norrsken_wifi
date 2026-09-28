@@ -139,6 +139,47 @@ function locationLine(label: string, floor: string | null | undefined): string {
   return label;
 }
 
+function privacyLine(): string {
+  return `<p class="privacy">Anonymous — we don’t collect your name or email.</p>`;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function sameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+function formatDateLabel(d: Date): string {
+  if (sameDay(d, new Date())) return "Today";
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
 async function run(b: Bootstrap) {
   let started = Date.now();
   let zoneId = b.zone.id;
@@ -149,6 +190,14 @@ async function run(b: Bootstrap) {
   const apps = new Set<string>();
   let otherApp = "";
   let whenBucket = "now";
+  const now = new Date();
+  let exactTouched = false;
+  let exactDate = startOfDay(now);
+  let exactHour = now.getHours();
+  let exactMinute = now.getMinutes();
+  let calOpen = false;
+  let calYear = now.getFullYear();
+  let calMonth = now.getMonth();
   let deviceClass = guessDevice();
   let wifiContext = "unknown";
   let errorMsg = "";
@@ -175,6 +224,10 @@ async function run(b: Bootstrap) {
           apps: [...apps],
           otherApp,
           whenBucket,
+          exactTouched,
+          exactDate: exactDate.toISOString(),
+          exactHour,
+          exactMinute,
           deviceClass,
           wifiContext,
           stepIndex,
@@ -207,6 +260,10 @@ async function run(b: Bootstrap) {
         apps?: string[];
         otherApp?: string;
         whenBucket?: string;
+        exactTouched?: boolean;
+        exactDate?: string;
+        exactHour?: number;
+        exactMinute?: number;
         deviceClass?: string;
         wifiContext?: string;
         stepIndex?: number;
@@ -228,6 +285,17 @@ async function run(b: Bootstrap) {
       }
       if (typeof d.otherApp === "string") otherApp = d.otherApp;
       if (typeof d.whenBucket === "string") whenBucket = d.whenBucket;
+      if (typeof d.exactTouched === "boolean") exactTouched = d.exactTouched;
+      if (typeof d.exactDate === "string") {
+        const parsed = new Date(d.exactDate);
+        if (!Number.isNaN(parsed.getTime())) {
+          exactDate = startOfDay(parsed);
+          calYear = exactDate.getFullYear();
+          calMonth = exactDate.getMonth();
+        }
+      }
+      if (typeof d.exactHour === "number") exactHour = d.exactHour;
+      if (typeof d.exactMinute === "number") exactMinute = d.exactMinute;
       if (typeof d.deviceClass === "string") deviceClass = d.deviceClass;
       if (typeof d.wifiContext === "string") wifiContext = d.wifiContext;
       if (typeof d.stepIndex === "number" && d.stepIndex >= 0 && d.stepIndex < steps.length) {
@@ -334,11 +402,11 @@ async function run(b: Bootstrap) {
             <img class="logo-norrsken" src="/qr/norrsken-logo-dark.svg" alt="Norrsken" />
             <span class="eyebrow">Network feedback</span>
           </div>
-          <div class="zone-row">
-            <h1 class="zone-label">${escapeHtml(place)}</h1>
-            <button type="button" class="not-here" data-action="not-here">Not here?</button>
-          </div>
-          <p class="privacy">Anonymous — we don’t collect your name or email.</p>
+          ${
+            step === "symptoms"
+              ? ""
+              : `<p class="place-quiet">${escapeHtml(place)}</p>`
+          }
         </header>
 
         <div class="progress" aria-label="Step ${current} of ${total}: ${STEP_TITLE[step]}">
@@ -364,29 +432,8 @@ async function run(b: Bootstrap) {
               ${busy ? "Saving…" : stepIndex === total - 1 ? "Submit ✔" : "Continue"}
             </button>
           </div>
+          ${privacyLine()}
         </section>
-
-        <div id="override-panel" hidden class="card override-card">
-          <h2>Where are you?</h2>
-          <div class="cselect" id="zone-cselect" data-value="${escapeHtml(zoneId)}">
-            <button type="button" class="cselect-trigger" data-action="toggle-zone-menu" aria-haspopup="listbox" aria-expanded="false">
-              <span class="cselect-value">${escapeHtml(place)}</span>
-              <span class="cselect-chevron" aria-hidden="true"></span>
-            </button>
-            <ul class="cselect-menu" hidden role="listbox">
-              ${b.zones
-                .map(
-                  (z) =>
-                    `<li role="option"><button type="button" class="cselect-option${z.id === zoneId ? " on" : ""}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(locationLine(z.label, z.floor))}</button></li>`,
-                )
-                .join("")}
-            </ul>
-          </div>
-          <div class="actions">
-            <button type="button" class="btn" data-action="cancel-override">Cancel</button>
-            <button type="button" class="btn btn-primary" data-action="apply-override">Use this place</button>
-          </div>
-        </div>
       </div>
 
       ${poweredByHtml()}
@@ -394,9 +441,83 @@ async function run(b: Bootstrap) {
     bind();
   }
 
+  function zonePickerHtml(): string {
+    return `
+      <div class="field-block">
+        <h2 class="field-title">Where were/are you?</h2>
+        <div class="chips chips-pills zone-picks" role="listbox" aria-label="Where were/are you?">
+          ${b.zones
+            .map(
+              (z) =>
+                `<button type="button" class="chip${z.id === zoneId ? " on" : ""}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(locationLine(z.label, z.floor))}</button>`,
+            )
+            .join("")}
+        </div>
+      </div>`;
+  }
+
+  function clampExactToNow() {
+    const clock = new Date();
+    if (!sameDay(exactDate, clock)) return;
+    if (exactHour > clock.getHours()) exactHour = clock.getHours();
+    if (exactHour === clock.getHours() && exactMinute > clock.getMinutes()) {
+      exactMinute = clock.getMinutes();
+    }
+  }
+
+  function calendarHtml(): string {
+    const today = startOfDay(new Date());
+    const first = new Date(calYear, calMonth, 1);
+    const startPad = first.getDay();
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const cells: string[] = [];
+    for (let i = 0; i < startPad; i++) cells.push(`<span class="cal-empty"></span>`);
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(calYear, calMonth, day);
+      const future = d.getTime() > today.getTime();
+      const selected = sameDay(d, exactDate);
+      const isToday = sameDay(d, today);
+      cells.push(
+        `<button type="button" class="cal-day${selected ? " on" : ""}${isToday ? " today" : ""}" data-cal-day="${day}" ${future ? "disabled" : ""}>${day}</button>`,
+      );
+    }
+    const clock = new Date();
+    const nextDisabled =
+      calYear > clock.getFullYear() || (calYear === clock.getFullYear() && calMonth >= clock.getMonth());
+    return `
+      <div class="cal-pop" ${calOpen ? "" : "hidden"}>
+        <div class="cal-head">
+          <button type="button" class="cal-nav" data-cal="prev" aria-label="Previous month">‹</button>
+          <span class="cal-title">${MONTHS[calMonth]} ${calYear}</span>
+          <button type="button" class="cal-nav" data-cal="next" aria-label="Next month" ${nextDisabled ? "disabled" : ""}>›</button>
+        </div>
+        <div class="cal-week">${WEEKDAYS.map((w) => `<span>${w}</span>`).join("")}</div>
+        <div class="cal-grid">${cells.join("")}</div>
+      </div>`;
+  }
+
+  function wheelHtml(kind: "hour" | "minute"): string {
+    const clock = new Date();
+    const isToday = sameDay(exactDate, clock);
+    const maxH = isToday ? clock.getHours() : 23;
+    const maxM = isToday && exactHour >= clock.getHours() ? clock.getMinutes() : 59;
+    const count = kind === "hour" ? 24 : 60;
+    const selected = kind === "hour" ? exactHour : exactMinute;
+    const attr = kind === "hour" ? "data-hour" : "data-minute";
+    let html = "";
+    for (let i = 0; i < count; i++) {
+      const disabled = kind === "hour" ? i > maxH : i > maxM;
+      html += `<button type="button" class="wheel-item${i === selected ? " on" : ""}" ${attr}="${i}" ${disabled ? "disabled" : ""}>${pad2(i)}</button>`;
+    }
+    const label = kind === "hour" ? "Hour" : "Minute";
+    return `<div class="wheel" data-wheel="${kind}" role="listbox" aria-label="${label}">${html}</div>`;
+  }
+
   function stepBody(step: StepId): string {
     if (step === "symptoms") {
       return `
+        ${zonePickerHtml()}
+        <h2 class="field-title">What happened?</h2>
         <p class="hint">Tap one or more (max 3)</p>
         <div class="chips chips-pills" data-group="symptoms">
           ${b.symptoms
@@ -410,13 +531,27 @@ async function run(b: Bootstrap) {
     if (step === "when") {
       return `
         <p class="hint">Pick the closest time</p>
-        <div class="chips" data-group="when">
+        <div class="chips chips-3" data-group="when">
           ${b.when
             .map(
               (w) =>
                 `<button type="button" class="chip${whenBucket === w.id ? " on" : ""}" data-when="${escapeHtml(w.id)}">${escapeHtml(w.label)}</button>`,
             )
             .join("")}
+        </div>
+        <div class="when-exact">
+          <p class="hint">Exact time <span class="hint-inline">(optional)</span></p>
+          <div class="when-exact-row">
+            <div class="cal-anchor">
+              <button type="button" class="when-date" data-action="toggle-cal" aria-expanded="${calOpen ? "true" : "false"}">${escapeHtml(formatDateLabel(exactDate))}</button>
+              ${calendarHtml()}
+            </div>
+            <div class="time-pair">
+              ${wheelHtml("hour")}
+              <span class="time-colon" aria-hidden="true">:</span>
+              ${wheelHtml("minute")}
+            </div>
+          </div>
         </div>`;
     }
     if (step === "device") {
@@ -430,15 +565,17 @@ async function run(b: Bootstrap) {
             { id: "linux", label: "Linux laptop" },
             { id: "unknown", label: "Not sure" },
           ];
+      const chip = (id: string) => {
+        const d = devices.find((x) => x.id === id);
+        if (!d) return "";
+        return `<button type="button" class="chip${deviceClass === d.id ? " on" : ""}" data-device="${escapeHtml(d.id)}">${escapeHtml(d.label)}</button>`;
+      };
       return `
         <p class="hint">Where did you notice the problem?</p>
-        <div class="chips chips-pills" data-group="device">
-          ${devices
-            .map(
-              (d) =>
-                `<button type="button" class="chip${deviceClass === d.id ? " on" : ""}" data-device="${escapeHtml(d.id)}">${escapeHtml(d.label)}</button>`,
-            )
-            .join("")}
+        <div class="device-lines">
+          <div class="device-line phones">${chip("iphone")}${chip("android")}</div>
+          <div class="device-line laptops">${chip("windows")}${chip("mac")}${chip("linux")}</div>
+          <div class="device-line other">${chip("unknown")}</div>
         </div>`;
     }
     if (step === "apps") {
@@ -552,65 +689,83 @@ async function run(b: Bootstrap) {
         render();
       }
     });
-    root.querySelector("[data-action='not-here']")?.addEventListener("click", () => {
-      const panel = root.querySelector<HTMLElement>("#override-panel");
-      if (panel) panel.hidden = !panel.hidden;
+    root.querySelector("[data-action='toggle-cal']")?.addEventListener("click", () => {
+      calOpen = !calOpen;
+      saveDraft();
+      render();
     });
-    root.querySelector("[data-action='cancel-override']")?.addEventListener("click", () => {
-      const panel = root.querySelector<HTMLElement>("#override-panel");
-      if (panel) panel.hidden = true;
+    root.querySelectorAll<HTMLButtonElement>("[data-cal]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        if (btn.dataset.cal === "prev") {
+          if (calMonth === 0) {
+            calMonth = 11;
+            calYear -= 1;
+          } else calMonth -= 1;
+        } else if (calYear < new Date().getFullYear() || calMonth < new Date().getMonth()) {
+          if (calMonth === 11) {
+            calMonth = 0;
+            calYear += 1;
+          } else calMonth += 1;
+        }
+        render();
+      });
     });
-    root.querySelector("[data-action='toggle-zone-menu']")?.addEventListener("click", () => {
-      const wrap = root.querySelector<HTMLElement>("#zone-cselect");
-      const menu = wrap?.querySelector<HTMLElement>(".cselect-menu");
-      const trigger = wrap?.querySelector<HTMLButtonElement>(".cselect-trigger");
-      if (!menu || !trigger || !wrap) return;
-      const willOpen = menu.hidden;
-      menu.hidden = !willOpen;
-      wrap.classList.toggle("open", willOpen);
-      trigger.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    root.querySelectorAll<HTMLButtonElement>("[data-cal-day]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        exactDate = new Date(calYear, calMonth, Number(btn.dataset.calDay));
+        exactTouched = true;
+        calOpen = false;
+        clampExactToNow();
+        saveDraft();
+        render();
+      });
+    });
+    root.querySelectorAll<HTMLButtonElement>("[data-hour]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        exactHour = Number(btn.dataset.hour);
+        exactTouched = true;
+        clampExactToNow();
+        saveDraft();
+        render();
+      });
+    });
+    root.querySelectorAll<HTMLButtonElement>("[data-minute]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        exactMinute = Number(btn.dataset.minute);
+        exactTouched = true;
+        saveDraft();
+        render();
+      });
+    });
+    root.querySelectorAll<HTMLElement>(".wheel").forEach((wheel) => {
+      const on = wheel.querySelector<HTMLElement>(".wheel-item.on");
+      if (!on) return;
+      wheel.scrollTop = on.offsetTop - wheel.clientHeight / 2 + on.clientHeight / 2;
     });
     root.querySelectorAll<HTMLButtonElement>("[data-zone-opt]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const wrap = root.querySelector<HTMLElement>("#zone-cselect");
-        const menu = wrap?.querySelector<HTMLElement>(".cselect-menu");
-        const trigger = wrap?.querySelector<HTMLButtonElement>(".cselect-trigger");
-        const valueEl = wrap?.querySelector(".cselect-value");
         const id = btn.dataset.zoneOpt!;
         const z = b.zones.find((x) => x.id === id);
-        if (wrap) wrap.dataset.value = id;
-        if (valueEl) valueEl.textContent = locationLine(z?.label ?? id, z?.floor ?? null);
-        root.querySelectorAll<HTMLButtonElement>("[data-zone-opt]").forEach((el) => el.classList.remove("on"));
-        btn.classList.add("on");
-        if (menu) menu.hidden = true;
-        wrap?.classList.remove("open");
-        trigger?.setAttribute("aria-expanded", "false");
-      });
-    });
-    root.querySelector("[data-action='apply-override']")?.addEventListener("click", () => {
-      const wrap = root.querySelector<HTMLElement>("#zone-cselect");
-      const nextId = wrap?.dataset.value;
-      if (!nextId) return;
-      const z = b.zones.find((x) => x.id === nextId);
-      zoneId = nextId;
-      zoneLabel = z?.label ?? nextId;
-      zoneFloor = z?.floor ?? null;
-      zoneSource = "override";
-      // Switching place: if they already reported *this* zone recently, show thanks instead
-      const priorHere = readDone(zoneId);
-      if (priorHere) {
-        phase = "done";
-        recentCount = priorHere.recentCount;
-        alreadySubmitted = true;
-        clearDraft();
+        const priorHere = readDone(id);
+        zoneId = id;
+        zoneLabel = z?.label ?? id;
+        zoneFloor = z?.floor ?? null;
+        zoneSource = id === b.zone.id ? "qr" : "override";
+        if (priorHere) {
+          phase = "done";
+          recentCount = priorHere.recentCount;
+          alreadySubmitted = true;
+          clearDraft();
+          render();
+          return;
+        }
+        saveDraft();
         render();
-        return;
-      }
-      saveDraft();
-      const labelEl = root.querySelector(".zone-label");
-      if (labelEl) labelEl.textContent = locationLine(zoneLabel, zoneFloor);
-      const panel = root.querySelector<HTMLElement>("#override-panel");
-      if (panel) panel.hidden = true;
+      });
     });
   }
 
@@ -634,7 +789,9 @@ async function run(b: Bootstrap) {
     try {
       const fill_ms = await waitMinFill();
       const hp = (document.getElementById("hp") as HTMLInputElement | null)?.value ?? "";
+      if (otherApp && !apps.has("other")) apps.add("other");
       const clarifiers = clarifierPayload();
+      const occurredAt = occurredAtPayload();
       const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -645,6 +802,7 @@ async function run(b: Bootstrap) {
           symptoms: [...symptoms],
           apps: [...apps],
           when_bucket: whenBucket,
+          ...(occurredAt ? { occurred_at: occurredAt } : {}),
           wifi_context: wifiContext,
           clarifiers,
           device_class: deviceClass,
@@ -686,6 +844,22 @@ async function run(b: Bootstrap) {
   function clarifierPayload(): Record<string, string> {
     if (apps.has("other") && otherApp) return { other_app: otherApp };
     return {};
+  }
+
+  function occurredAtPayload(): string | undefined {
+    if (!exactTouched) return undefined;
+    clampExactToNow();
+    const d = new Date(
+      exactDate.getFullYear(),
+      exactDate.getMonth(),
+      exactDate.getDate(),
+      exactHour,
+      exactMinute,
+      0,
+      0,
+    );
+    if (d.getTime() > Date.now()) return new Date().toISOString();
+    return d.toISOString();
   }
 
   async function goNext() {

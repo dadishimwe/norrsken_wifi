@@ -2,7 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { downloadCsv, opsApi, type DashboardPayload, type ReportsPage } from "./api";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { formatClarifiersDisplay, labelAppEntry, labelDevice, labelSymptom } from "./labels";
+import {
+  formatClarifiersDisplay,
+  labelAppEntry,
+  labelDevice,
+  labelSymptom,
+  labelWhen,
+  labelWifi,
+} from "./labels";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -304,7 +311,9 @@ export function DashboardView({ canEdit = false }: Props) {
                     <th>Apps</th>
                     <th>Timing</th>
                     <th>Wi‑Fi</th>
-                    <th>Clarifiers</th>
+                    <th title="Extra answers, such as what was slow, choppy, or the name typed for another app">
+                      Clarifiers
+                    </th>
                     <th>Device</th>
                     <th>Channel</th>
                     <th>Weight</th>
@@ -333,8 +342,8 @@ export function DashboardView({ canEdit = false }: Props) {
                             ))
                           : "—"}
                       </td>
-                      <td>{r.when_bucket}</td>
-                      <td>{r.wifi_context}</td>
+                      <td>{labelWhen(r.when_bucket, r.occurred_at)}</td>
+                      <td>{labelWifi(r.wifi_context)}</td>
                       <td className="cell-clamp">{clarifierText(r.clarifiers)}</td>
                       <td>{labelDevice(r.device_class)}</td>
                       <td>{r.channel}</td>

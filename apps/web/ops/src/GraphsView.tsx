@@ -7,6 +7,7 @@ import {
   formatDayTick,
 } from "./Charts";
 import { CustomSelect } from "./CustomSelect";
+import { labelApp, labelSymptom, labelWifi } from "./labels";
 
 type Days = 7 | 14 | 30 | 90;
 type Channel = "all" | "qr" | "slack";
@@ -106,15 +107,18 @@ export function GraphsView() {
   });
   const wifiPoints = data.wifi.map((w) => {
     const n = Number(w.n) || 0;
-    return { label: w.wifi_context, value: n, title: `${w.wifi_context}: ${n}` };
+    const name = labelWifi(w.wifi_context);
+    return { label: name, value: n, title: `${name}: ${n}` };
   });
   const appPoints = data.apps.map((a) => {
     const n = Number(a.n) || 0;
-    return { label: a.app, value: n, title: `${a.app}: ${n} mention${n === 1 ? "" : "s"}` };
+    const name = labelApp(a.app);
+    return { label: name, value: n, title: `${name}: ${n} mention${n === 1 ? "" : "s"}` };
   });
   const symptomPoints = data.symptoms.map((s) => {
     const n = Number(s.n) || 0;
-    return { label: s.symptom, value: n, title: `${s.symptom}: ${n}` };
+    const name = labelSymptom(s.symptom);
+    return { label: name, value: n, title: `${name}: ${n}` };
   });
   const zonePoints = data.top_zones.map((z) => {
     const n = Number(z.report_count) || 0;

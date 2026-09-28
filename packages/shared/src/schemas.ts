@@ -32,6 +32,11 @@ export const createReportSchema = z
     symptoms: z.array(symptomSchema).min(1).max(3),
     apps: z.array(appSchema).max(5).default([]),
     when_bucket: whenBucketSchema.default("now"),
+    /** Guest-chosen clock time. Omitted when they only picked a bucket. */
+    occurred_at: z
+      .string()
+      .refine((s) => !Number.isNaN(Date.parse(s)), "Invalid datetime")
+      .optional(),
     wifi_context: z.string().min(1).max(64).default("unknown"),
     clarifiers: clarifiersSchema.default({}),
     device_class: deviceClassSchema.default("unknown"),
