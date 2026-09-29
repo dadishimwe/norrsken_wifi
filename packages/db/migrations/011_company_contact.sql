@@ -1,3 +1,4 @@
+-- migrate:up
 -- Company / place typed on the form, plus optional follow-up contact.
 
 alter table report add column if not exists company text;
