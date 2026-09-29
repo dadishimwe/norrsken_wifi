@@ -1,6 +1,6 @@
 display_information:
   name: Norrsken Wi-Fi
-  description: Anonymous network problem reports for Norrsken House
+  description: Network problem reports for Norrsken House
   background_color: "#0a0a0a"
 features:
   app_home:
@@ -14,7 +14,7 @@ features:
     - name: Report a network problem
       type: global
       callback_id: wifi_report
-      description: Tap through a short anonymous report
+      description: Tap through a short report
   slash_commands:
     - command: /wifi
       description: Report a network problem

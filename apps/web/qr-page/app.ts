@@ -96,7 +96,7 @@ function friendlySubmitError(code: string): string {
   const raw = code.trim();
   const known: Record<string, string> = {
     rate_limited_zone:
-      "You already sent a report for this area a moment ago. Thanks — no need to send another.",
+      "You already sent a report a moment ago. Thanks — no need to send another.",
     rate_limited_day:
       "You've reached today's report limit. Thanks for helping — try again tomorrow if needed.",
     too_fast: "That was a bit quick — please take a second and try again.",
@@ -133,49 +133,8 @@ function friendlySubmitError(code: string): string {
   return "Could not save. Try again.";
 }
 
-function zoneChip(z: Zone, zoneId: string): string {
-  const on = z.id === zoneId ? " on" : "";
-  return `<button type="button" class="chip${on}" data-zone-opt="${escapeHtml(z.id)}">${escapeHtml(locationLine(z.label, z.floor))}</button>`;
-}
-
-/** Reception and Ground first, classrooms next, Not sure last. */
-function zonePicker(places: Zone[], zoneId: string): string {
-  const used = new Set<string>();
-  const byId = new Map(places.map((z) => [z.id, z]));
-  const take = (ids: string[]): Zone[] =>
-    ids.flatMap((id) => {
-      const z = byId.get(id);
-      if (!z) return [];
-      used.add(id);
-      return [z];
-    });
-  const classroom2 = places.filter((z) => /^c2l\d+$/.test(z.id));
-  classroom2.forEach((z) => used.add(z.id));
-  const rows: Zone[][] = [
-    take(["reception", "ground", "c1"]),
-    classroom2,
-    take(["c3", "c4", "c5"]),
-    places.filter((z) => !used.has(z.id) && z.id !== "not-sure"),
-    take(["not-sure"]),
-  ].filter((row) => row.length > 0);
-
-  return `<div class="zone-groups">${rows
-    .map(
-      (row) =>
-        `<div class="chips chips-pills">${row.map((z) => zoneChip(z, zoneId)).join("")}</div>`,
-    )
-    .join("")}</div>`;
-}
-
-function locationLine(label: string, floor: string | null | undefined): string {
-  if (floor && floor.trim() && !label.toLowerCase().includes(floor.toLowerCase())) {
-    return `${floor.trim()} · ${label}`;
-  }
-  return label;
-}
-
 function privacyLine(): string {
-  return `<p class="privacy">Anonymous — we don’t collect your name or email.</p>`;
+  return `<p class="privacy">Your details are only used by the Norrsken House team to follow up on this report.</p>`;
 }
 
 function pad2(n: number): string {
@@ -217,17 +176,18 @@ function formatDateLabel(d: Date): string {
 
 
 async function run(b: Bootstrap) {
-  const places = b.zones.filter((z) => z.id !== HOUSE_QR);
-  const entryIsHouse = b.zone.id === HOUSE_QR;
   let started = Date.now();
-  let zoneId = entryIsHouse ? "" : b.zone.id;
-  let zoneSource: "qr" | "selected" | "override" = entryIsHouse ? "selected" : "qr";
-  let zoneLabel = entryIsHouse ? "" : b.zone.label;
-  let zoneFloor = b.zone.floor;
+  const zoneId = b.zone.id || HOUSE_QR;
+  const zoneSource = "qr" as const;
   const symptoms = new Set<string>();
   const apps = new Set<string>();
   let otherApp = "";
   let note = "";
+  let company = "";
+  let contactOk = false;
+  let contactName = "";
+  let contactPhone = "";
+  let contactEmail = "";
   let whenBucket = "now";
   const now = new Date();
   let exactTouched = false;
@@ -252,14 +212,15 @@ async function run(b: Bootstrap) {
       sessionStorage.setItem(
         draftKey,
         JSON.stringify({
-          zoneId,
-          zoneSource,
-          zoneLabel,
-          zoneFloor,
           symptoms: [...symptoms],
           apps: [...apps],
           otherApp,
           note,
+          company,
+          contactOk,
+          contactName,
+          contactPhone,
+          contactEmail,
           whenBucket,
           exactTouched,
           exactDate: exactDate.toISOString(),
@@ -286,14 +247,15 @@ async function run(b: Bootstrap) {
       const raw = sessionStorage.getItem(draftKey);
       if (!raw) return;
       const d = JSON.parse(raw) as {
-        zoneId?: string;
-        zoneSource?: "qr" | "selected" | "override";
-        zoneLabel?: string;
-        zoneFloor?: string | null;
         symptoms?: string[];
         apps?: string[];
         otherApp?: string;
         note?: string;
+        company?: string;
+        contactOk?: boolean;
+        contactName?: string;
+        contactPhone?: string;
+        contactEmail?: string;
         whenBucket?: string;
         exactTouched?: boolean;
         exactDate?: string;
@@ -301,17 +263,6 @@ async function run(b: Bootstrap) {
         exactMinute?: number;
         started?: number;
       };
-      if (d.zoneId && places.some((z) => z.id === d.zoneId)) {
-        zoneId = d.zoneId;
-        zoneSource =
-          d.zoneSource === "override" || d.zoneSource === "selected" || d.zoneSource === "qr"
-            ? d.zoneSource
-            : entryIsHouse
-              ? "selected"
-              : "qr";
-        zoneLabel = d.zoneLabel ?? zoneLabel;
-        zoneFloor = d.zoneFloor ?? zoneFloor;
-      }
       if (Array.isArray(d.symptoms)) {
         symptoms.clear();
         d.symptoms.forEach((s) => symptoms.add(s));
@@ -322,6 +273,11 @@ async function run(b: Bootstrap) {
       }
       if (typeof d.otherApp === "string") otherApp = d.otherApp;
       if (typeof d.note === "string") note = d.note;
+      if (typeof d.company === "string") company = d.company;
+      if (typeof d.contactOk === "boolean") contactOk = d.contactOk;
+      if (typeof d.contactName === "string") contactName = d.contactName;
+      if (typeof d.contactPhone === "string") contactPhone = d.contactPhone;
+      if (typeof d.contactEmail === "string") contactEmail = d.contactEmail;
       if (typeof d.whenBucket === "string") whenBucket = d.whenBucket;
       if (typeof d.exactTouched === "boolean") exactTouched = d.exactTouched;
       if (typeof d.exactDate === "string") {
@@ -385,6 +341,14 @@ async function run(b: Bootstrap) {
     if (other) otherApp = other.value.trim().slice(0, 80);
     const noteEl = root.querySelector<HTMLTextAreaElement>("#note");
     if (noteEl) note = noteEl.value.trim().slice(0, 400);
+    const companyEl = root.querySelector<HTMLInputElement>("#company");
+    if (companyEl) company = companyEl.value.trim().slice(0, 120);
+    const nameEl = root.querySelector<HTMLInputElement>("#contact-name");
+    if (nameEl) contactName = nameEl.value.trim().slice(0, 80);
+    const phoneEl = root.querySelector<HTMLInputElement>("#contact-phone");
+    if (phoneEl) contactPhone = phoneEl.value.trim().slice(0, 40);
+    const emailEl = root.querySelector<HTMLInputElement>("#contact-email");
+    if (emailEl) contactEmail = emailEl.value.trim().slice(0, 120);
   }
 
   function clearOutside() {
@@ -400,7 +364,6 @@ async function run(b: Bootstrap) {
         <div class="shell shell-done">
           ${doneBlock(recentCount, alreadySubmitted)}
         </div>
-        ${poweredByHtml()}
       `;
       return;
     }
@@ -427,7 +390,6 @@ async function run(b: Bootstrap) {
         </section>
         ${privacyLine()}
       </div>
-      ${poweredByHtml()}
     `;
     bind();
   }
@@ -481,9 +443,25 @@ async function run(b: Bootstrap) {
       </div>
       <div class="field-block">
         <h2 class="field-title">Where?</h2>
-        <p class="hint">C is a classroom. L is a level, so C2L3 is Classroom 2, level 3.</p>
-        <div role="listbox" aria-label="Where?">
-          ${zonePicker(places, zoneId)}
+        <p class="hint">The company you work with, or the place you're working from.</p>
+        <input id="company" class="text-input" type="text" maxlength="120" required
+          placeholder="e.g. Acme, or Classroom 2"
+          value="${escapeHtml(company)}"
+          autocomplete="organization" />
+        <label class="check-row">
+          <input id="contact-ok" type="checkbox" ${contactOk ? "checked" : ""} />
+          <span>I'm happy to be contacted about this</span>
+        </label>
+        <div class="contact-fields" ${contactOk ? "" : "hidden"}>
+          <label for="contact-name">Full name <span class="hint-inline">(optional)</span></label>
+          <input id="contact-name" class="text-input" type="text" maxlength="80"
+            value="${escapeHtml(contactName)}" autocomplete="name" />
+          <label for="contact-phone">Phone number <span class="hint-inline">(optional)</span></label>
+          <input id="contact-phone" class="text-input" type="tel" maxlength="40"
+            value="${escapeHtml(contactPhone)}" autocomplete="tel" />
+          <label for="contact-email">Email <span class="hint-inline">(optional)</span></label>
+          <input id="contact-email" class="text-input" type="email" maxlength="120"
+            value="${escapeHtml(contactEmail)}" autocomplete="email" />
         </div>
       </div>
       <div class="field-block field-block-last">
@@ -733,27 +711,16 @@ async function run(b: Bootstrap) {
       if (!on) return;
       wheel.scrollTop = on.offsetTop - wheel.clientHeight / 2 + on.clientHeight / 2;
     });
-    root.querySelectorAll<HTMLButtonElement>("[data-zone-opt]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = btn.dataset.zoneOpt!;
-        const z = places.find((x) => x.id === id);
-        const priorHere = readDone(id);
-        zoneId = id;
-        zoneLabel = z?.label ?? id;
-        zoneFloor = z?.floor ?? null;
-        zoneSource = id === b.zone.id ? "qr" : entryIsHouse ? "selected" : "override";
-        if (priorHere) {
-          phase = "done";
-          recentCount = priorHere.recentCount;
-          alreadySubmitted = true;
-          clearDraft();
-          render();
-          return;
-        }
-        syncTextInputs();
-        saveDraft();
-        render();
-      });
+    root.querySelector<HTMLInputElement>("#contact-ok")?.addEventListener("change", (ev) => {
+      contactOk = (ev.currentTarget as HTMLInputElement).checked;
+      if (!contactOk) {
+        contactName = "";
+        contactPhone = "";
+        contactEmail = "";
+      }
+      syncTextInputs();
+      saveDraft();
+      render();
     });
     root.querySelector("[data-action='submit']")?.addEventListener("click", () => void submitReport());
   }
@@ -785,8 +752,12 @@ async function run(b: Bootstrap) {
     if (busy) return;
     syncTextInputs();
     setError("");
-    if (!zoneId) {
-      setError("Pick where you are.");
+    if (!company.trim()) {
+      setError("Tell us the company or place you're working from.");
+      return;
+    }
+    if (contactOk && contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      setError("Enter a valid email, or leave it blank.");
       return;
     }
     if (symptoms.size === 0) {
@@ -823,6 +794,11 @@ async function run(b: Bootstrap) {
           zone_id: zoneId,
           zone_source: zoneSource,
           channel: "qr",
+          company,
+          contact_ok: contactOk,
+          ...(contactOk && contactName ? { contact_name: contactName } : {}),
+          ...(contactOk && contactPhone ? { contact_phone: contactPhone } : {}),
+          ...(contactOk && contactEmail ? { contact_email: contactEmail } : {}),
           symptoms: [...symptoms],
           apps: [...apps],
           when_bucket: whenBucket,
@@ -871,22 +847,14 @@ async function run(b: Bootstrap) {
   render();
 }
 
-function poweredByHtml(): string {
-  return `
-    <footer class="powered-by">
-      <span>Powered by</span>
-      <img class="logo-zuba" src="/qr/zuba-logo-on-light.png" alt="Zuba Broadband" />
-    </footer>`;
-}
-
 function doneBlock(recentCount: number, already = false): string {
   const status =
     recentCount >= 3
-      ? `${recentCount} others reported this area in the last 10 min.`
-      : "Network Ops is on it.";
+      ? `${recentCount} other reports in the last 10 min.`
+      : "The team is on it.";
   const title = already ? "Report already sent" : "Thanks — this helps everyone.";
   const body = already
-    ? "You already reported this area a moment ago. No need to send another — you can close this page."
+    ? "You already sent a report a moment ago. No need to send another — you can close this page."
     : "Your report was saved. You can close this page.";
   return `
     <div class="done">

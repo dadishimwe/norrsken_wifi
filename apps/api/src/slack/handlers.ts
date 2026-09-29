@@ -1,11 +1,7 @@
 import type { App } from "@slack/bolt";
 import type { View } from "@slack/types";
 import type { Pool } from "pg";
-import {
-  computeActorHash,
-  getSession,
-  listActiveZones,
-} from "@norrsken/db";
+import { computeActorHash } from "@norrsken/db";
 import { APPS, SYMPTOMS, UNIVERSAL_ZONE_ID, type App as AppId, type Symptom } from "@norrsken/shared";
 import type { Env } from "../env.js";
 import { HttpError, createReport } from "../reports-service.js";
@@ -80,7 +76,7 @@ function occurredAtFromPick(date: string, time: string): string | undefined {
 function friendly(err: unknown): string {
   const msg = err instanceof HttpError ? err.message : "";
   if (msg === "rate_limited_zone") {
-    return "You already sent a report for this area a moment ago. Thanks — no need to send another.";
+    return "You already sent a report a moment ago. Thanks — no need to send another.";
   }
   if (msg === "rate_limited_day") {
     return "You've reached today's report limit. Thanks for helping.";
@@ -88,23 +84,74 @@ function friendly(err: unknown): string {
   return "Could not save that report. Try again in a moment.";
 }
 
+function checked(values: Values, block: string, action: string): boolean {
+  return (values[block]?.[action]?.selected_options ?? []).some((o) => o.value === "yes");
+}
+
+function validEmail(value: string): boolean {
+  return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function draftFromValues(view: { private_metadata?: string; state?: { values?: Values } }): SlackDraft {
+  const draft = parseDraft(view.private_metadata);
+  const values = (view.state?.values ?? {}) as Values;
+  draft.symptoms = many(values, "symptoms", "symptom_ids")
+    .filter((s): s is Symptom => (SYMPTOMS as readonly string[]).includes(s))
+    .slice(0, 3);
+  const when = one(values, "when", "when_bucket");
+  if (when === "now" || when === "recent" || when === "earlier") draft.when_bucket = when;
+  draft.occurred_date = dateValue(values, "occurred_date", "date");
+  draft.occurred_time = timeValue(values, "occurred_time", "time");
+  let apps = many(values, "apps", "app_ids")
+    .filter((id): id is AppId => (APPS as readonly string[]).includes(id))
+    .slice(0, 5);
+  const otherApp = text(values, "other_app", "other_app").slice(0, 80);
+  if (otherApp) {
+    const withOther: AppId[] = [...apps.filter((id) => id !== "other"), "other"];
+    apps = withOther.slice(-5);
+  }
+  draft.apps = apps;
+  const note = text(values, "note", "note").slice(0, 400);
+  draft.clarifiers = {
+    ...(otherApp ? { other_app: otherApp } : {}),
+    ...(note ? { note } : {}),
+  };
+  draft.company = text(values, "company", "company").slice(0, 120);
+  draft.contact_ok = checked(values, "contact_ok", "contact_ok");
+  draft.contact_name = draft.contact_ok ? text(values, "contact_name", "name").slice(0, 80) : "";
+  draft.contact_phone = draft.contact_ok ? text(values, "contact_phone", "phone").slice(0, 40) : "";
+  draft.contact_email = draft.contact_ok ? text(values, "contact_email", "email").slice(0, 120) : "";
+  draft.zone_id = UNIVERSAL_ZONE_ID;
+  draft.zone_source = "selected";
+  draft.device_class = "unknown";
+  draft.wifi_context = "unknown";
+  return draft;
+}
+
 export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
   async function openReport(client: { views: { open: (args: { trigger_id: string; view: View }) => Promise<unknown> } }, triggerId: string, userId: string) {
-    const zones = (await listActiveZones(db))
-      .filter((z) => z.id !== UNIVERSAL_ZONE_ID)
-      .map((z) => ({ id: z.id, label: z.label, floor: z.floor }));
     const draft = parseDraft(null);
+    draft.zone_id = UNIVERSAL_ZONE_ID;
     if (env.SLACK_REMEMBER_LAST_ZONE) {
       const hash = await computeActorHash(db, slackActorToken(userId));
-      const session = await getSession(db, hash);
-      if (session?.last_zone_id && zones.some((z) => z.id === session.last_zone_id)) {
-        draft.zone_id = session.last_zone_id;
+      const { rows } = await db.query<{ company: string }>(
+        `
+        select company from report
+        where actor_hash = $1 and company is not null and length(trim(company)) > 0
+        order by created_at desc
+        limit 1
+        `,
+        [hash],
+      );
+      const company = rows[0]?.company?.trim();
+      if (company) {
+        draft.company = company;
         draft.zone_source = "remembered";
       }
     }
     await client.views.open({
       trigger_id: triggerId,
-      view: reportFormView(zones, draft),
+      view: reportFormView(draft),
     });
   }
 
@@ -137,60 +184,38 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     );
     const incident = rows[0];
     if (!incident) return;
-    const all = await listActiveZones(db);
-    const zones = all
-      .filter((z) => incident.zones.includes(z.id))
-      .map((z) => ({ id: z.id, label: z.label, floor: z.floor }));
     const symptoms = incident.symptoms.filter((s): s is Symptom =>
       (SYMPTOMS as readonly string[]).includes(s),
     );
-    if (zones.length === 0) return;
     await client.views.open({
       trigger_id: triggerId,
-      view: metooZoneView(incidentId, zones, symptoms.length ? symptoms : ["no_internet"]),
+      view: metooZoneView(incidentId, symptoms.length ? symptoms : ["no_internet"]),
+    });
+  });
+
+  bolt.action("contact_ok", async ({ ack, body, client }) => {
+    await ack();
+    if (!("view" in body) || !body.view) return;
+    const draft = draftFromValues(body.view);
+    await client.views.update({
+      view_id: body.view.id,
+      hash: body.view.hash,
+      view: reportFormView(draft),
     });
   });
 
   bolt.view("wifi_report_form", async ({ ack, view, body }) => {
-    const draft = parseDraft(view.private_metadata);
-    const values = view.state.values as Values;
-    const zoneId = one(values, "zone", "zone_id");
-    const picked = many(values, "symptoms", "symptom_ids");
-    const symptomErr = symptomError(picked);
+    const draft = draftFromValues(view);
+    const symptomErr = symptomError(draft.symptoms);
     const errors: Record<string, string> = {};
     if (symptomErr) errors.symptoms = symptomErr;
-    if (!zoneId) errors.zone = "Pick a place.";
+    if (!draft.company.trim()) errors.company = "Tell us the company or place.";
+    if (!validEmail(draft.contact_email)) errors.contact_email = "Enter a valid email.";
     if (Object.keys(errors).length > 0) {
       await ack({ response_action: "errors", errors });
       return;
     }
-    if (draft.zone_id !== zoneId) draft.zone_source = "selected";
-    draft.zone_id = zoneId;
-    draft.symptoms = picked.filter((s): s is Symptom =>
-      (SYMPTOMS as readonly string[]).includes(s),
-    );
-    const when = one(values, "when", "when_bucket");
-    if (when === "now" || when === "recent" || when === "earlier") draft.when_bucket = when;
-    let apps = many(values, "apps", "app_ids")
-      .filter((id): id is AppId => (APPS as readonly string[]).includes(id))
-      .slice(0, 5);
-    const otherApp = text(values, "other_app", "other_app").slice(0, 80);
-    if (otherApp) {
-      const withOther: AppId[] = [...apps.filter((id) => id !== "other"), "other"];
-      apps = withOther.slice(-5);
-    }
-    draft.apps = apps;
-    const note = text(values, "note", "note").slice(0, 400);
-    draft.clarifiers = {
-      ...(otherApp ? { other_app: otherApp } : {}),
-      ...(note ? { note } : {}),
-    };
-    draft.device_class = "unknown";
-    draft.wifi_context = "unknown";
-    const occurredAt = occurredAtFromPick(
-      dateValue(values, "occurred_date", "date"),
-      timeValue(values, "occurred_time", "time"),
-    );
+    const occurredAt = occurredAtFromPick(draft.occurred_date, draft.occurred_time);
     try {
       const saved = await submitDraft(db, env, draft, body.user.id, "slack", occurredAt);
       await ack({ response_action: "update", view: thanksView(saved.recent_count) });
@@ -204,13 +229,15 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
 
   bolt.view("wifi_metoo", async ({ ack, view, body }) => {
     const draft = parseDraft(view.private_metadata);
-    const zoneId = one(view.state.values as Values, "zone", "zone_id");
-    if (!zoneId) {
-      await ack({ response_action: "errors", errors: { zone: "Pick a place." } });
+    const company = text(view.state.values as Values, "company", "company").slice(0, 120);
+    if (!company) {
+      await ack({ response_action: "errors", errors: { company: "Tell us the company or place." } });
       return;
     }
-    draft.zone_id = zoneId;
+    draft.company = company;
+    draft.zone_id = UNIVERSAL_ZONE_ID;
     draft.zone_source = "selected";
+    draft.contact_ok = false;
     if (draft.symptoms.length === 0) draft.symptoms = ["no_internet"];
     try {
       const saved = await submitDraft(db, env, draft, body.user.id, "slack_metoo", undefined, draft.incident_id);
@@ -262,6 +289,11 @@ async function submitDraft(
       wifi_context: draft.wifi_context,
       clarifiers: draft.clarifiers,
       device_class: draft.device_class,
+      company: draft.company,
+      contact_ok: draft.contact_ok,
+      ...(draft.contact_name ? { contact_name: draft.contact_name } : {}),
+      ...(draft.contact_phone ? { contact_phone: draft.contact_phone } : {}),
+      ...(draft.contact_email ? { contact_email: draft.contact_email } : {}),
       session_token: slackActorToken(slackUserId),
     },
     undefined,

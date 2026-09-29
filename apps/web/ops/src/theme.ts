@@ -50,11 +50,3 @@ export function logoSrc(theme: Theme): string {
     ? `${base}norrsken-logo-dark.svg`
     : `${base}norrsken-logo-white.svg`;
 }
-
-/** Zuba mark: on-light for light UI, on-dark for dark UI. */
-export function partnerLogoSrc(theme: Theme): string {
-  const base = import.meta.env.BASE_URL;
-  return theme === "light"
-    ? `${base}zuba-logo-on-light.png`
-    : `${base}zuba-logo-on-dark.png`;
-}

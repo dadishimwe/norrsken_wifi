@@ -42,6 +42,17 @@ export const createReportSchema = z
     wifi_context: z.string().min(1).max(64).default("unknown"),
     clarifiers: clarifiersSchema.default({}),
     device_class: deviceClassSchema.default("unknown"),
+    /** Company, or the place they are working from. */
+    company: z.string().trim().min(1).max(120),
+    contact_ok: z.boolean().default(false),
+    contact_name: z.string().trim().max(80).optional(),
+    contact_phone: z.string().trim().max(40).optional(),
+    contact_email: z
+      .string()
+      .trim()
+      .max(120)
+      .optional()
+      .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid email"),
     fill_ms: z.number().int().nonnegative().optional(),
     /** Honeypot — must be empty/absent */
     website: z.string().max(0).optional(),

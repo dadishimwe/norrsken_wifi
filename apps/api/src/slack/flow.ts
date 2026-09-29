@@ -23,6 +23,13 @@ export type SlackDraft = {
   when_bucket: WhenBucket;
   device_class: DeviceOption;
   wifi_context: string;
+  company: string;
+  contact_ok: boolean;
+  contact_name: string;
+  contact_phone: string;
+  contact_email: string;
+  occurred_date: string;
+  occurred_time: string;
   /** Incident id when this draft is a "me too" report */
   incident_id?: string;
 };
@@ -37,6 +44,13 @@ export function emptyDraft(zoneId = ""): SlackDraft {
     when_bucket: "now",
     device_class: "unknown",
     wifi_context: "unknown",
+    company: "",
+    contact_ok: false,
+    contact_name: "",
+    contact_phone: "",
+    contact_email: "",
+    occurred_date: "",
+    occurred_time: "",
   };
 }
 
@@ -68,6 +82,13 @@ export function parseDraft(raw: string | undefined | null): SlackDraft {
       when_bucket: when,
       device_class: device,
       wifi_context: typeof v.wifi_context === "string" ? v.wifi_context : "unknown",
+      company: typeof v.company === "string" ? v.company.slice(0, 120) : "",
+      contact_ok: v.contact_ok === true,
+      contact_name: typeof v.contact_name === "string" ? v.contact_name.slice(0, 80) : "",
+      contact_phone: typeof v.contact_phone === "string" ? v.contact_phone.slice(0, 40) : "",
+      contact_email: typeof v.contact_email === "string" ? v.contact_email.slice(0, 120) : "",
+      occurred_date: typeof v.occurred_date === "string" ? v.occurred_date : "",
+      occurred_time: typeof v.occurred_time === "string" ? v.occurred_time : "",
       incident_id: typeof v.incident_id === "string" ? v.incident_id : undefined,
     };
   } catch {

@@ -5,7 +5,7 @@ import { DashboardView } from "./DashboardView";
 import { UsersAdmin } from "./UsersAdmin";
 import { ZonesAdmin } from "./ZonesAdmin";
 import { GraphsView } from "./GraphsView";
-import { BrandLogo, PartnerLogo, ThemeToggle } from "./BrandLogo";
+import { BrandLogo, ThemeToggle } from "./BrandLogo";
 import { useTheme } from "./theme";
 
 type Tab = "dashboard" | "graphs" | "zones" | "users";
@@ -97,10 +97,6 @@ export function App() {
         )}
       </main>
 
-      <footer className="powered-by">
-        <span>Powered by</span>
-        <PartnerLogo theme={theme} className="partner-logo partner-logo-footer" />
-      </footer>
     </div>
   );
 }

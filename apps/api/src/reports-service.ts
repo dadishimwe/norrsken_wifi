@@ -18,7 +18,6 @@ import {
   zoneHasOpenIncident,
 } from "@norrsken/db";
 import {
-  UNIVERSAL_ZONE_ID,
   browserFromUserAgent,
   deviceFromUserAgent,
   createReportSchema,
@@ -29,6 +28,7 @@ import {
 } from "@norrsken/shared";
 import type { Env } from "./env.js";
 import { evaluateIncidents } from "./incident-engine.js";
+import { postReportAlert } from "./slack-alert.js";
 import { campusWeight, parseCampusIps } from "./campus.js";
 import { mintEditToken, verifyEditToken } from "./edit-token.js";
 
@@ -80,6 +80,11 @@ function resolveOccurredAt(explicit?: string): Date | null {
   return d;
 }
 
+function blankToNull(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed ? trimmed : null;
+}
+
 function boostWeight(base: number, clarifiers: Record<string, unknown>): number {
   if (clarifiers.same_as_incident === "yes") return Math.min(2, base * 1.5);
   return base;
@@ -116,7 +121,6 @@ export async function createReport(
     throw new HttpError(400, "too_fast");
   }
 
-  if (input.zone_id === UNIVERSAL_ZONE_ID) throw new HttpError(400, "pick_zone");
   const zone = await getZone(db, input.zone_id);
   if (!zone || !zone.active) throw new HttpError(400, "unknown_zone");
 
@@ -175,6 +179,10 @@ export async function createReport(
       incident_id: null,
     };
     const rowHash = computeRowHash(prevHash, hashable);
+    const contactOk = input.contact_ok === true;
+    const contactName = contactOk ? blankToNull(input.contact_name) : null;
+    const contactPhone = contactOk ? blankToNull(input.contact_phone) : null;
+    const contactEmail = contactOk ? blankToNull(input.contact_email) : null;
 
     // Insert with explicit id via raw query extension — insertReport generates UUID.
     // Use insert then we need fixed id for token; patch insertReport to accept id.
@@ -183,9 +191,10 @@ export async function createReport(
       insert into report (
         id, created_at, channel, zone_id, zone_source, symptoms, apps, when_bucket,
         occurred_at, wifi_context, clarifiers, device_class, fill_ms, actor_hash,
-        weight, prev_hash, row_hash, browser
+        weight, prev_hash, row_hash, browser, company, contact_ok, contact_name,
+        contact_phone, contact_email
       ) values (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23
       )
       returning id
       `,
@@ -208,6 +217,11 @@ export async function createReport(
         prevHash,
         rowHash,
         browser,
+        input.company.trim(),
+        contactOk,
+        contactName,
+        contactPhone,
+        contactEmail,
       ],
     );
     if (!rows[0]) throw new Error("insert failed");
@@ -225,6 +239,15 @@ export async function createReport(
     await evaluateIncidents(db);
   } catch (err) {
     console.error("incident engine", err);
+  }
+  try {
+    await postReportAlert(env, {
+      company: input.company,
+      contactOk: input.contact_ok,
+      contactName: input.contact_ok ? input.contact_name : null,
+    });
+  } catch (err) {
+    console.error("slack alert", err instanceof Error ? err.message : "failed");
   }
 
   const hasIncident = await zoneHasOpenIncident(db, input.zone_id);

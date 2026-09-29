@@ -1,12 +1,12 @@
 :root {
-  --bg: #f4f5f4;
+  --bg: #f6f5f1;
   --card: #ffffff;
   --text: #0a0a0a;
   --muted: #5c5f5c;
   --dim: #8a8d8a;
   --border: #e2e4e2;
-  --accent: #e85d04;
-  --accent-soft: rgba(232, 93, 4, 0.12);
+  --accent: #111111;
+  --accent-soft: rgba(17, 17, 17, 0.08);
   --danger: #c43c3c;
   --ok: #2d8a55;
   --radius: 14px;
@@ -592,6 +592,39 @@ body {
   min-height: 48px;
 }
 
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.check-row input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #111;
+}
+
+.contact-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.contact-fields[hidden] {
+  display: none;
+}
+
+.contact-fields label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
 .text-input:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -755,27 +788,6 @@ body {
   width: 0;
 }
 
-.powered-by {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s1);
-  margin-top: 0;
-  padding-top: var(--s3);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--dim);
-  letter-spacing: 0.02em;
-}
-
-.powered-by .logo-zuba {
-  height: 36px;
-  width: auto;
-  display: block;
-  opacity: 0.95;
-}
-
 /* Done / success */
 .done {
   text-align: center;
@@ -843,7 +855,7 @@ body {
 .spark:nth-child(5) {
   --a: 160deg;
   --d: 46px;
-  background: #e6b84d;
+  background: #d7f25a;
 }
 .spark:nth-child(6) {
   --a: 220deg;

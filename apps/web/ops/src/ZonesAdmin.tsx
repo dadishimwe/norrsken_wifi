@@ -278,9 +278,9 @@ export function ZonesAdmin({ canEdit }: Props) {
     pending?.kind === "delete"
       ? `Permanently remove “${pending.zone.label}”? Only unused zones can be deleted. This cannot be undone.`
       : pending?.kind === "disable"
-        ? `Turn off “${pending.zone.label}”? Guests won’t see it in the location list until you enable it again.`
+        ? `Turn off “${pending.zone.label}”? It stays on file for older reports.`
         : pending
-          ? `Turn “${pending.zone.label}” back on so guests can pick it again?`
+          ? `Turn “${pending.zone.label}” back on? It is kept for older reports.`
           : "";
 
   return (
@@ -312,7 +312,7 @@ export function ZonesAdmin({ canEdit }: Props) {
       <section className="panel">
         <h2>Zones</h2>
         <p className="muted" style={{ marginBottom: "1rem" }}>
-          Reception, Ground, and classrooms C1–C5. Classroom 2 is C2L1–C2L5 (C classroom, L level).
+          Older room names stay here for past reports. New reports ask people to type a company or place instead.
           One QR covers the whole house. Zones with reports can’t be disabled or deleted.
         </p>
         {error ? <p className="error">{error}</p> : null}
@@ -491,7 +491,7 @@ export function ZonesAdmin({ canEdit }: Props) {
                 </a>
               </div>
               <p className="muted qr-url-hint">
-                One code for the house. Guests choose their location on the form.
+                One code for the house. People type their company or place on the form.
               </p>
             </>
           ) : (

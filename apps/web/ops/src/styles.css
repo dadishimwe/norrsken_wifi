@@ -1,21 +1,21 @@
 /* Light mode is default; dark via [data-theme="dark"] on <html> */
 :root {
-  --bg: #f4f5f4;
+  --bg: #f6f5f1;
   --bg-elevated: #ffffff;
   --bg-panel: #ffffff;
-  --border: #e2e4e2;
-  --border-strong: #c8cbc8;
-  --text: #0a0a0a;
-  --text-muted: #5c5f5c;
-  --text-dim: #8a8d8a;
-  --accent: #e85d04;
-  --accent-dim: rgba(232, 93, 4, 0.12);
+  --border: #e4e2da;
+  --border-strong: #cbc8be;
+  --text: #111111;
+  --text-muted: #5c5c5c;
+  --text-dim: #8a8a8a;
+  --accent: #111111;
+  --accent-dim: rgba(17, 17, 17, 0.08);
   --danger: #c43c3c;
   --warn: #b8860b;
   --ok: #2d8a55;
-  --topbar-bg: rgba(244, 245, 244, 0.9);
-  --glow-a: rgba(232, 93, 4, 0.07);
-  --glow-b: rgba(10, 10, 10, 0.03);
+  --topbar-bg: rgba(246, 245, 241, 0.92);
+  --glow-a: rgba(215, 242, 90, 0.45);
+  --glow-b: rgba(17, 17, 17, 0.03);
   --font: "DM Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --radius: 2px;
@@ -30,13 +30,13 @@ html[data-theme="dark"] {
   --text: #f5f5f5;
   --text-muted: #9a9a9a;
   --text-dim: #6b6b6b;
-  --accent: #ff8a3d;
-  --accent-dim: rgba(255, 138, 61, 0.18);
+  --accent: #d7f25a;
+  --accent-dim: rgba(215, 242, 90, 0.16);
   --danger: #e86a6a;
   --warn: #e6b84d;
   --ok: #6fcf97;
   --topbar-bg: rgba(7, 7, 7, 0.85);
-  --glow-a: rgba(255, 138, 61, 0.1);
+  --glow-a: rgba(215, 242, 90, 0.12);
   --glow-b: rgba(255, 255, 255, 0.04);
 }
 
@@ -363,7 +363,7 @@ a {
 }
 
 .table-hover tbody tr:hover td {
-  background: var(--accent-dim, rgba(232, 93, 4, 0.08));
+  background: var(--accent-dim, rgba(17, 17, 17, 0.06));
 }
 
 .pill {
@@ -447,9 +447,9 @@ html[data-theme="dark"] .btn-primary:hover {
 }
 
 .btn-danger {
-  background: #c2410c;
+  background: var(--danger);
   color: #fff;
-  border-color: #c2410c;
+  border-color: var(--danger);
   font-weight: 600;
 }
 
@@ -739,11 +739,11 @@ html[data-theme="dark"] .login-card {
 }
 
 .row-menu-item.danger {
-  color: #c2410c;
+  color: var(--danger);
 }
 
 .row-menu-item.danger:hover {
-  background: rgba(232, 93, 4, 0.1);
+  background: rgba(196, 60, 60, 0.1);
 }
 
 .row-busy {
@@ -1176,10 +1176,22 @@ html[data-theme="dark"] .login-card {
 }
 
 .seg-0 { background: var(--accent); }
-.seg-1 { background: #3d6b9a; }
-.seg-2 { background: #c4a35a; }
-.seg-3 { background: #8a6bb0; }
-.seg-4 { background: #5a9a7a; }
+.seg-1 { background: #3a3a3a; }
+.seg-2 { background: #d7f25a; }
+.seg-3 { background: #8a8a8a; }
+.seg-4 { background: #c8c6bc; }
+
+.contact-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 8rem;
+}
+
+.contact-meta {
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
 
 .chart-share-legend {
   list-style: none;

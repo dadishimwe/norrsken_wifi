@@ -18,6 +18,8 @@ const envSchema = z.object({
   SLACK_APP_TOKEN: z.string().optional(),
   SLACK_OPS_CHANNEL: z.string().optional(),
   SLACK_STATUS_CHANNEL: z.string().optional(),
+  /** Channel ID (C…) where each new report is announced. Invite the bot first. */
+  SLACK_ALERTS_CHANNEL: z.string().optional(),
   SLACK_REMEMBER_LAST_ZONE: z
     .string()
     .optional()

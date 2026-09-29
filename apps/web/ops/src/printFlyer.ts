@@ -1,4 +1,4 @@
-/** A4 flyer HTML matching the Norrsken × Zuba partnership print design. */
+/** A4 flyer for the Norrsken House report QR. */
 
 export type PrintZoneQr = {
   url: string;
@@ -22,13 +22,11 @@ function esc(s: string): string {
 export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
   const base = assetBase.endsWith("/") ? assetBase : `${assetBase}/`;
   const norrsken = `${base}norrsken-logo-dark.svg`;
-  const zuba = `${base}zuba-logo-on-light.png`;
 
-  // Zuba orange + Norrsken charcoal/black
-  const orange = "#E85D04";
-  const navy = "#1B2430";
-  const muted = "#6B7280";
-  const soft = "#FFF4EB";
+  const ink = "#111111";
+  const muted = "#5c5c5c";
+  const paper = "#f4f6e8";
+  const lime = "#d7f25a";
 
   return `<!doctype html>
 <html lang="en"><head>
@@ -41,7 +39,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   @page { size: A4; margin: 14mm 16mm; }
   * { box-sizing: border-box; }
   html, body {
-    margin: 0; padding: 0; background: #fff; color: ${navy};
+    margin: 0; padding: 0; background: #fff; color: ${ink};
     font-family: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -65,7 +63,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     margin: 0;
     font-size: 12px;
     font-weight: 500;
-    color: ${navy};
+    color: ${ink};
     letter-spacing: 0.01em;
   }
   h1 {
@@ -75,10 +73,10 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     margin: 0 0 14px;
     font-weight: 800;
     letter-spacing: -0.02em;
-    color: ${navy};
+    color: ${ink};
   }
   h1 .accent {
-    color: ${orange};
+    color: ${ink};
     display: block;
   }
   .intro {
@@ -101,9 +99,9 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   .qr-box {
     grid-column: 1;
     grid-row: 1;
-    border: 2.5px dashed ${orange};
+    border: 2.5px dashed ${ink};
     border-radius: 18px;
-    background: ${soft};
+    background: ${paper};
     padding: 14px;
     min-height: 78mm;
     display: flex;
@@ -138,7 +136,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   }
   .num {
     width: 36px; height: 36px; border-radius: 50%;
-    background: ${orange}; color: #fff;
+    background: ${ink}; color: #fff;
     font-size: 16px; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
     line-height: 1;
@@ -147,7 +145,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     font-size: 18px;
     font-weight: 800;
     margin: 0 0 3px;
-    color: ${navy};
+    color: ${ink};
     line-height: 1.15;
   }
   .step-hint {
@@ -167,12 +165,12 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     padding: 7px 14px;
     border-radius: 999px;
     background: #E8EAED;
-    color: ${navy};
+    color: ${ink};
     font-weight: 600;
   }
   .pill.on {
-    background: ${orange};
-    color: #fff;
+    background: ${lime};
+    color: ${ink};
   }
   .features {
     display: grid;
@@ -181,7 +179,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     margin-bottom: 20px;
   }
   .feat {
-    background: ${navy};
+    background: ${ink};
     color: #fff;
     border-radius: 14px;
     padding: 16px 12px;
@@ -189,7 +187,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   }
   .feat strong {
     display: block;
-    color: ${orange};
+    color: ${lime};
     font-size: 16px;
     font-weight: 800;
     margin-bottom: 4px;
@@ -215,18 +213,6 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     margin: 0;
     max-width: 118mm;
   }
-  .logo-zuba {
-    height: 36px;
-    width: auto;
-    display: block;
-    flex-shrink: 0;
-  }
-  .partner-fallback {
-    font-size: 11px;
-    font-weight: 700;
-    color: ${orange};
-    white-space: nowrap;
-  }
 </style></head><body>
 <div class="flyer">
   <div class="brand">
@@ -237,7 +223,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   <h1>Internet not behaving?<span class="accent">Tell us in 10 seconds.</span></h1>
   <p class="intro">We're working to make the internet here consistently good, not just fast.
   Our monitors see the network; only you see the call that froze or the page that wouldn't load.
-  Scan, tap four answers, done. Every report is matched against what the network was doing at that moment.</p>
+  Scan, answer a few questions, done. Every report is matched against what the network was doing at that moment.</p>
 
   <div class="mid">
     <div class="qr-box">
@@ -247,7 +233,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
       <li><span class="num">1</span><div><p class="step-title">What happened</p><p class="step-hint">Couldn't connect, slow, call choppy, dropped</p></div></li>
       <li><span class="num">2</span><div><p class="step-title">When</p><p class="step-hint">Just now, or earlier</p></div></li>
       <li><span class="num">3</span><div><p class="step-title">Which app</p><p class="step-hint">Zoom, Teams, Meet, WhatsApp, Slack…</p></div></li>
-      <li><span class="num">4</span><div><p class="step-title">Where you were</p><p class="step-hint">Floor or room, Wi‑Fi or wired</p></div></li>
+      <li><span class="num">4</span><div><p class="step-title">Where you work</p><p class="step-hint">Company, or the place you're in</p></div></li>
     </ol>
   </div>
 
@@ -258,22 +244,17 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     <span class="pill">Dropped</span>
     <span class="pill">Just now</span>
     <span class="pill on">Zoom</span>
-    <span class="pill">Meeting room</span>
-    <span class="pill">Wi‑Fi</span>
   </div>
 
   <div class="features">
-    <div class="feat"><strong>4 taps</strong><span>No login, no app, no typing</span></div>
-    <div class="feat"><strong>Anonymous</strong><span>Unless you'd like a reply</span></div>
-    <div class="feat"><strong>All good?</strong><span>Say so too, one tap</span></div>
+    <div class="feat"><strong>Short form</strong><span>No login and no app to install</span></div>
+    <div class="feat"><strong>Your choice</strong><span>Add contact details only if you want a reply</span></div>
+    <div class="feat"><strong>Same questions</strong><span>QR code and Slack ask the same thing</span></div>
   </div>
 
   <div class="footer">
-    <p class="disclaimer">Reports go to the team that runs the Norrsken House network.
-    We never see what you do online, only what you tell us here.</p>
-    <img class="logo-zuba" src="${esc(zuba)}" alt="Zuba Broadband"
-      onerror="this.style.display='none';this.nextElementSibling.style.display='block'"/>
-    <span class="partner-fallback" style="display:none">Zuba Broadband</span>
+    <p class="disclaimer">Reports go to the Norrsken House team.
+    Your details are only used to follow up on this report.</p>
   </div>
 </div>
 </body></html>`;

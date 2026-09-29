@@ -1,7 +1,7 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { opsApi, type OpsUser } from "./api";
-import { BrandLogo, PartnerLogo, ThemeToggle } from "./BrandLogo";
+import { BrandLogo, ThemeToggle } from "./BrandLogo";
 import type { Theme } from "./theme";
 
 type Props = {
@@ -37,7 +37,7 @@ export function LoginPage({ onLogin, theme, onToggleTheme }: Props) {
       <form className="login-card" onSubmit={onSubmit}>
         <BrandLogo theme={theme} className="logo" />
         <h1>Network Ops</h1>
-        <p>Sign in with the account your admin created. Reporter traffic stays anonymous.</p>
+        <p>Sign in with the account your admin created.</p>
         {error ? <p className="error">{error}</p> : null}
         <div className="field">
           <label htmlFor="username">Username</label>
@@ -64,10 +64,6 @@ export function LoginPage({ onLogin, theme, onToggleTheme }: Props) {
           {busy ? "Signing in…" : "Sign in"}
         </button>
       </form>
-      </div>
-      <div className="powered-by powered-by-login">
-        <span>Powered by</span>
-        <PartnerLogo theme={theme} className="partner-logo partner-logo-footer" />
       </div>
     </div>
   );

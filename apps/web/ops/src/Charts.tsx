@@ -17,7 +17,7 @@ const MONTHS_SHORT = [
   "Dec",
 ] as const;
 
-const PIE_COLORS = ["#e85d04", "#1b2430", "#c4a35a", "#8a6bb0", "#5a9a7a", "#3d6b9a"];
+const PIE_COLORS = ["#111111", "#d7f25a", "#5c5c5c", "#c8c6bc", "#3a3a3a", "#8a8a8a"];
 
 type Tip = { text: string; x: number; y: number };
 

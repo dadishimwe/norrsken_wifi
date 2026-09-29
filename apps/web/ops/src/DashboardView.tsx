@@ -7,7 +7,6 @@ import {
   labelAppEntry,
   labelBrowser,
   labelDeviceType,
-  labelLocation,
   labelSymptom,
   labelWhen,
 } from "./labels";
@@ -257,35 +256,9 @@ export function DashboardView({ canEdit = false }: Props) {
 
       <div className="grid-2">
         <section className="panel">
-          <h2>Zones</h2>
-          <div className="zone-grid">
-            {data.zones
-              .filter((z) => z.zone_id !== "house")
-              .map((z) => {
-              const hot = Number(z.reports_1h) >= 2;
-              return (
-                <div
-                  key={z.zone_id}
-                  className={`zone-card${z.has_open_incident ? " incident" : hot ? " hot" : ""}`}
-                >
-                  <div className="name">{z.label}</div>
-                  <div className="meta">
-                    <span
-                      className={`status-dot${z.has_open_incident ? " bad" : hot ? " warn" : ""}`}
-                    />
-                    {z.reports_1h} / 1h · {z.reports_24h} / 24h
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="panel">
           <h2>Open incidents</h2>
           <p className="muted" style={{ marginBottom: "0.75rem" }}>
-            Opens when three people report the same place within 10 minutes, or three places each
-            have two people within 15 minutes. Acknowledge and resolve record the time only.
+            Opens when three people report within 10 minutes. Acknowledge and resolve record the time only.
           </p>
           {data.incidents.length === 0 ? (
             <p className="empty">No open incidents yet.</p>
@@ -390,7 +363,8 @@ export function DashboardView({ canEdit = false }: Props) {
                     <th title="Extra answers, including a note and the name typed for another app">
                       Clarifiers
                     </th>
-                    <th>Location</th>
+                    <th>Company</th>
+                    <th>Contact</th>
                     <th>Device</th>
                     <th>Browser</th>
                     {canEdit ? <th className="col-actions" aria-label="Actions" /> : null}
@@ -421,7 +395,23 @@ export function DashboardView({ canEdit = false }: Props) {
                       </td>
                       <td>{labelWhen(r.when_bucket, r.occurred_at)}</td>
                       <td className="cell-clamp">{clarifierText(r.clarifiers)}</td>
-                      <td>{labelLocation(r.zone_label)}</td>
+                      <td>{r.company?.trim() || "—"}</td>
+                      <td>
+                        {r.contact_ok ? (
+                          <div className="contact-cell">
+                            <div>{r.contact_name?.trim() || "Name not given"}</div>
+                            {r.contact_phone?.trim() || r.contact_email?.trim() ? (
+                              <div className="muted contact-meta">
+                                {[r.contact_phone?.trim(), r.contact_email?.trim()]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td>{labelDeviceType(r.device_class)}</td>
                       <td>{labelBrowser(r.browser)}</td>
                       {canEdit ? (
@@ -430,7 +420,7 @@ export function DashboardView({ canEdit = false }: Props) {
                             onDelete={() =>
                               setPending({
                                 id: r.id,
-                                zoneLabel: r.zone_label,
+                                zoneLabel: r.company?.trim() || "this report",
                                 when: timeAgo(r.created_at),
                               })
                             }

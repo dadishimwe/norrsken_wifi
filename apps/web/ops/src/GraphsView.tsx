@@ -35,7 +35,6 @@ function useCompactChartLabels() {
 export function GraphsView() {
   const [days, setDays] = useState<Days>(30);
   const [channel, setChannel] = useState<Channel>("all");
-  const [zoneId, setZoneId] = useState<string>("");
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +44,7 @@ export function GraphsView() {
     let cancelled = false;
     setLoading(true);
     opsApi
-      .analytics({ days, channel, zone_id: zoneId || null })
+      .analytics({ days, channel })
       .then((d) => {
         if (!cancelled) {
           setData(d);
@@ -61,11 +60,11 @@ export function GraphsView() {
     return () => {
       cancelled = true;
     };
-  }, [days, channel, zoneId]);
+  }, [days, channel]);
 
   const filterQs = useMemo(
-    () => qs({ days, channel, zone_id: zoneId || undefined }),
-    [days, channel, zoneId],
+    () => qs({ days, channel }),
+    [days, channel],
   );
 
   if (error) return <p className="error">{error}</p>;
@@ -116,21 +115,15 @@ export function GraphsView() {
     const name = labelSymptom(s.symptom);
     return { label: name, value: n, title: `${name}: ${n}` };
   });
-  const zonePoints = data.top_zones.map((z) => {
-    const n = Number(z.report_count) || 0;
+  const companyPoints = (data.companies ?? []).map((c) => {
+    const n = Number(c.n) || 0;
     return {
-      label: z.label,
+      label: c.company,
       value: n,
-      title: `${z.label}: ${n} report${n === 1 ? "" : "s"}`,
+      title: `${c.company}: ${n} report${n === 1 ? "" : "s"}`,
     };
   });
-
-  const zoneOptions = [
-    { value: "", label: "All zones" },
-    ...(data.zones_options ?? [])
-      .filter((z) => z.id !== "house")
-      .map((z) => ({ value: z.id, label: z.label })),
-  ];
+  const contact = data.contact;
 
   return (
     <>
@@ -147,7 +140,7 @@ export function GraphsView() {
             className="btn"
             onClick={() =>
               downloadCsv(
-                `/api/ops/analytics/export.csv${qs({ kind: "apps", days, channel, zone_id: zoneId || undefined })}`,
+                `/api/ops/analytics/export.csv${qs({ kind: "apps", days, channel })}`,
                 "apps.csv",
               )
             }
@@ -159,7 +152,7 @@ export function GraphsView() {
             className="btn"
             onClick={() =>
               downloadCsv(
-                `/api/ops/analytics/export.csv${qs({ kind: "per_day", days, channel, zone_id: zoneId || undefined })}`,
+                `/api/ops/analytics/export.csv${qs({ kind: "per_day", days, channel })}`,
                 "reports-per-day.csv",
               )
             }
@@ -199,13 +192,6 @@ export function GraphsView() {
             { value: "qr", label: <ChannelLabel channel="qr" /> },
             { value: "slack", label: <ChannelLabel channel="slack" /> },
           ]}
-        />
-        <CustomSelect
-          label="Zone"
-          value={zoneId}
-          disabled={loading}
-          onChange={setZoneId}
-          options={zoneOptions}
         />
         {loading ? <span className="muted filter-status">Updating…</span> : null}
       </div>
@@ -270,16 +256,16 @@ export function GraphsView() {
           <HorizontalBars items={symptomPoints} maxItems={10} />
         </section>
 
-        <section className="panel chart-panel chart-panel-zones">
+        <section className="panel chart-panel">
           <div className="chart-head">
-            <h2>Top zones</h2>
-            <span className="chart-kind">Vertical · ranking</span>
+            <h2>Companies</h2>
+            <span className="chart-kind">
+              {contact
+                ? `${contact.with_contact} of ${contact.total} left contact details`
+                : "Horizontal · ranking"}
+            </span>
           </div>
-          <VerticalBars
-            items={zonePoints.slice(0, 8)}
-            height={220}
-            formatLabel={(label) => (label.length > 14 ? `${label.slice(0, 12)}…` : label)}
-          />
+          <HorizontalBars items={companyPoints} maxItems={8} />
         </section>
       </div>
 

@@ -8,6 +8,7 @@ import {
   SYMPTOMS,
   WHEN_BUCKETS,
   WHEN_LABELS,
+  UNIVERSAL_ZONE_ID,
   type ClarifierDef,
 } from "@norrsken/shared";
 import { emptyDraft, encodeDraft, type SlackDraft, type ZoneChoice } from "./flow.js";
@@ -94,9 +95,17 @@ export function homeView(opts: {
   };
 }
 
-/** One screen, same questions as the QR form: what, when, apps, where, note. */
-export function reportFormView(zones: ZoneChoice[], draft: SlackDraft): View {
-  const initialZone = zones.find((z) => z.id === draft.zone_id);
+const CONTACT_OPTION = {
+  text: plain("I'm happy to be contacted about this"),
+  value: "yes",
+};
+
+function filled(value: string): { initial_value: string } | Record<string, never> {
+  return value ? { initial_value: value } : {};
+}
+
+/** One screen, same questions as the QR form. */
+export function reportFormView(draft: SlackDraft): View {
   return modal(
     "wifi_report_form",
     "Report a problem",
@@ -113,6 +122,14 @@ export function reportFormView(zones: ZoneChoice[], draft: SlackDraft): View {
             text: plain(SYMPTOM_LABELS[id]),
             value: id,
           })),
+          ...(draft.symptoms.length
+            ? {
+                initial_options: draft.symptoms.map((id) => ({
+                  text: plain(SYMPTOM_LABELS[id]),
+                  value: id,
+                })),
+              }
+            : {}),
         },
       },
       {
@@ -145,6 +162,7 @@ export function reportFormView(zones: ZoneChoice[], draft: SlackDraft): View {
           type: "datepicker",
           action_id: "date",
           placeholder: plain("Optional"),
+          ...(draft.occurred_date ? { initial_date: draft.occurred_date } : {}),
         },
       },
       {
@@ -156,6 +174,7 @@ export function reportFormView(zones: ZoneChoice[], draft: SlackDraft): View {
           type: "timepicker",
           action_id: "time",
           placeholder: plain("Optional"),
+          ...(draft.occurred_time ? { initial_time: draft.occurred_time } : {}),
         },
       },
       {
@@ -176,6 +195,14 @@ export function reportFormView(zones: ZoneChoice[], draft: SlackDraft): View {
             text: plain(APP_LABELS[id]),
             value: id,
           })),
+          ...(draft.apps.length
+            ? {
+                initial_options: draft.apps.map((id) => ({
+                  text: plain(APP_LABELS[id]),
+                  value: id,
+                })),
+              }
+            : {}),
         },
       },
       {
@@ -188,26 +215,85 @@ export function reportFormView(zones: ZoneChoice[], draft: SlackDraft): View {
           action_id: "other_app",
           placeholder: plain("Optional"),
           max_length: 80,
+          ...filled(draft.clarifiers.other_app ?? ""),
         },
       },
       {
         type: "input",
-        block_id: "zone",
+        block_id: "company",
         label: plain("Where?"),
         element: {
-          type: "static_select",
-          action_id: "zone_id",
-          placeholder: plain("Choose a place"),
-          options: zones.map((z) => ({ text: plain(z.label), value: z.id })),
-          ...(initialZone
-            ? { initial_option: { text: plain(initialZone.label), value: initialZone.id } }
-            : {}),
+          type: "plain_text_input",
+          action_id: "company",
+          placeholder: plain("Company or place"),
+          max_length: 120,
+          ...filled(draft.company),
         },
       },
       {
         type: "context",
-        elements: [{ type: "mrkdwn", text: "C is a classroom. L is a level, so C2L3 is Classroom 2, level 3." }],
+        elements: [
+          {
+            type: "mrkdwn",
+            text: "The company you work with, or the place you're working from.",
+          },
+        ],
       },
+      {
+        type: "actions",
+        block_id: "contact_ok",
+        elements: [
+          {
+            type: "checkboxes",
+            action_id: "contact_ok",
+            options: [CONTACT_OPTION],
+            ...(draft.contact_ok ? { initial_options: [CONTACT_OPTION] } : {}),
+          },
+        ],
+      },
+      ...(draft.contact_ok
+        ? [
+            {
+              type: "input" as const,
+              optional: true,
+              block_id: "contact_name",
+              label: plain("Full name"),
+              element: {
+                type: "plain_text_input" as const,
+                action_id: "name",
+                placeholder: plain("Optional"),
+                max_length: 80,
+                ...filled(draft.contact_name),
+              },
+            },
+            {
+              type: "input" as const,
+              optional: true,
+              block_id: "contact_phone",
+              label: plain("Phone number"),
+              element: {
+                type: "plain_text_input" as const,
+                action_id: "phone",
+                placeholder: plain("Optional"),
+                max_length: 40,
+                ...filled(draft.contact_phone),
+              },
+            },
+            {
+              type: "input" as const,
+              optional: true,
+              block_id: "contact_email",
+              label: plain("Email"),
+              element: {
+                type: "plain_text_input" as const,
+                action_id: "email",
+                placeholder: plain("Optional"),
+                max_length: 120,
+                ...filled(draft.contact_email),
+              },
+            },
+          ]
+        : []),
       {
         type: "input",
         optional: true,
@@ -219,7 +305,17 @@ export function reportFormView(zones: ZoneChoice[], draft: SlackDraft): View {
           placeholder: plain("Optional"),
           multiline: true,
           max_length: 400,
+          ...filled(draft.clarifiers.note ?? ""),
         },
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: "Your details are only used by the Norrsken House team to follow up on this report.",
+          },
+        ],
       },
     ],
     "Submit",
@@ -422,12 +518,12 @@ export function messageView(title: string, body: string): View {
   };
 }
 
-export function metooZoneView(
-  incidentId: string,
-  zones: ZoneChoice[],
-  symptoms: SlackDraft["symptoms"],
-): View {
-  const draft: SlackDraft = { ...emptyDraft(), symptoms, incident_id: incidentId };
+export function metooZoneView(incidentId: string, symptoms: SlackDraft["symptoms"]): View {
+  const draft: SlackDraft = {
+    ...emptyDraft(UNIVERSAL_ZONE_ID),
+    symptoms,
+    incident_id: incidentId,
+  };
   return modal(
     "wifi_metoo",
     "I'm affected too",
@@ -435,14 +531,20 @@ export function metooZoneView(
     [
       {
         type: "input",
-        block_id: "zone",
-        label: plain("Where are you?"),
+        block_id: "company",
+        label: plain("Where?"),
         element: {
-          type: "static_select",
-          action_id: "zone_id",
-          placeholder: plain("Choose a place"),
-          options: zones.map((z) => ({ text: plain(z.label), value: z.id })),
+          type: "plain_text_input",
+          action_id: "company",
+          placeholder: plain("Company or place"),
+          max_length: 120,
         },
+      },
+      {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: "The company you work with, or the place you're working from." },
+        ],
       },
     ],
     "Send",

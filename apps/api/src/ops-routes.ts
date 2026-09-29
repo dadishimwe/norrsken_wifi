@@ -603,7 +603,11 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         { title: "apps", field: "apps" },
         { title: "when_bucket", field: "when_bucket" },
         { title: "occurred_at", field: "occurred_at" },
-        { title: "location", field: "zone_label" },
+        { title: "company", field: "company" },
+        { title: "contact_ok", field: "contact_ok" },
+        { title: "contact_name", field: "contact_name" },
+        { title: "contact_phone", field: "contact_phone" },
+        { title: "contact_email", field: "contact_email" },
         { title: "device", field: "device_class", kind: "device" },
         { title: "browser", field: "browser", kind: "browser" },
         { title: "clarifiers", field: "clarifiers" },
@@ -663,7 +667,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       }
       const where = filters.join(" and ");
 
-      const [perDay, apps, symptoms, wifi, zones, kpi, zoneList] = await Promise.all([
+      const [perDay, apps, symptoms, wifi, zones, companies, contact, kpi, zoneList] = await Promise.all([
         db.query(
           `
           select d::date as day, coalesce(c.n, 0)::int as reports
@@ -728,6 +732,28 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
           `,
           params,
         ),
+        db.query(
+          `
+          select min(trim(r.company)) as company, count(*)::int as n
+          from report r
+          where ${where}
+            and nullif(trim(r.company), '') is not null
+          group by lower(trim(r.company))
+          order by n desc
+          limit 8
+          `,
+          params,
+        ),
+        db.query(
+          `
+          select
+            count(*) filter (where r.contact_ok)::int as with_contact,
+            count(*)::int as total
+          from report r
+          where ${where}
+          `,
+          params,
+        ),
         db.query(`select * from v_kpi_daily`),
         db.query(
           `select id, label from zone where active = true and id <> 'house' order by sort, label`,
@@ -742,7 +768,9 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         symptoms: symptoms.rows,
         wifi: wifi.rows,
         top_zones: zones.rows,
-        note: "Open incidents fill when the M4 incident engine clusters reports. Charts respect the filters above.",
+        companies: companies.rows,
+        contact: contact.rows[0] ?? { with_contact: 0, total: 0 },
+        note: "Charts respect the filters above.",
       };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
