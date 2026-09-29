@@ -8,6 +8,19 @@ const ROLE_OPTIONS = [
   { value: "admin", label: "Admin — manage users & zones" },
 ] as const;
 
+function formatLastLogin(iso: string | null | undefined): string {
+  if (!iso) return "Never";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Never";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function UsersAdmin() {
   const [users, setUsers] = useState<OpsUser[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -283,6 +296,7 @@ export function UsersAdmin() {
               <th>User</th>
               <th>Role</th>
               <th>Status</th>
+              <th>Last sign-in</th>
               <th />
             </tr>
           </thead>
@@ -295,6 +309,7 @@ export function UsersAdmin() {
                 </td>
                 <td>{u.role}</td>
                 <td>{u.active === false ? "disabled" : "active"}</td>
+                <td>{formatLastLogin(u.last_login_at)}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
                   <button className="btn btn-ghost" type="button" onClick={() => openReset(u)}>
                     Edit
