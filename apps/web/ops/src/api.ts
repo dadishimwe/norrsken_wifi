@@ -36,6 +36,7 @@ export type IntegrationsPayload = {
     qr_24h: number;
     slack_7d: number;
     last_slack_at: string | null;
+    last_qr_at: string | null;
   };
 };
 

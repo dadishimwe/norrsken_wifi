@@ -340,13 +340,15 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         qr_24h: string;
         slack_7d: string;
         last_slack_at: Date | null;
+        last_qr_at: Date | null;
       }>(`
         select
           count(*) filter (where channel = 'slack' and created_at > now() - interval '24 hours')::text as slack_24h,
           count(*) filter (where channel = 'slack_metoo' and created_at > now() - interval '24 hours')::text as metoo_24h,
           count(*) filter (where channel = 'qr' and created_at > now() - interval '24 hours')::text as qr_24h,
           count(*) filter (where channel in ('slack','slack_metoo') and created_at > now() - interval '7 days')::text as slack_7d,
-          max(created_at) filter (where channel in ('slack','slack_metoo')) as last_slack_at
+          max(created_at) filter (where channel in ('slack','slack_metoo')) as last_slack_at,
+          max(created_at) filter (where channel = 'qr') as last_qr_at
         from report
       `);
       const counts = rows[0];
@@ -369,6 +371,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
           qr_24h: Number(counts?.qr_24h ?? 0),
           slack_7d: Number(counts?.slack_7d ?? 0),
           last_slack_at: counts?.last_slack_at ?? null,
+          last_qr_at: counts?.last_qr_at ?? null,
         },
       };
     } catch (err) {

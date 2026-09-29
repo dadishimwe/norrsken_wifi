@@ -177,6 +177,16 @@ export function IntegrationsView() {
         ) : (
           <p className="muted">{qrError ?? "Loading the report QR…"}</p>
         )}
+        <div className="stat-rows" style={{ marginTop: 24 }}>
+          <div>
+            <span>QR reports · 24h</span>
+            <strong>{reports?.qr_24h ?? "—"}</strong>
+          </div>
+          <div>
+            <span>Last QR report</span>
+            <strong>{timeAgo(reports?.last_qr_at)}</strong>
+          </div>
+        </div>
       </section>
 
       <section className="panel">
@@ -239,10 +249,6 @@ export function IntegrationsView() {
           <div>
             <span>Slack reports · 7d</span>
             <strong>{reports?.slack_7d ?? "—"}</strong>
-          </div>
-          <div>
-            <span>QR reports · 24h</span>
-            <strong>{reports?.qr_24h ?? "—"}</strong>
           </div>
         </div>
         {connection?.error && !connected ? (
