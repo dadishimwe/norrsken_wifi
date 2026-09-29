@@ -1,4 +1,5 @@
 import type { Env } from "./env.js";
+import { markAlertResult } from "./slack/status.js";
 
 /** One line for the house alerts channel. Phone and email stay on the dashboard. */
 export function reportAlertText(input: {
@@ -32,6 +33,10 @@ export async function postReportAlert(
   });
   const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
   if (!data.ok) {
-    console.error("slack alert", data.error || res.status);
+    const error = data.error || `http_${res.status}`;
+    markAlertResult(false, error);
+    console.error("slack alert", error);
+    return;
   }
+  markAlertResult(true, null);
 }

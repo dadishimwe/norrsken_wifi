@@ -32,6 +32,7 @@ import {
 import type { Env } from "./env.js";
 import { HttpError } from "./reports-service.js";
 import { buildZoneQr } from "./qr-service.js";
+import { slackLiveStatus } from "./slack/status.js";
 
 function labelList(ids: unknown, labels: Record<string, string>): string {
   if (!Array.isArray(ids)) return "";
@@ -322,6 +323,53 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         zones: zones.rows,
         reports: reports.rows,
         incidents: incidents.rows,
+      };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get("/api/ops/integrations", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const live = slackLiveStatus();
+      const { rows } = await db.query<{
+        slack_24h: string;
+        metoo_24h: string;
+        qr_24h: string;
+        slack_7d: string;
+        last_slack_at: Date | null;
+      }>(`
+        select
+          count(*) filter (where channel = 'slack' and created_at > now() - interval '24 hours')::text as slack_24h,
+          count(*) filter (where channel = 'slack_metoo' and created_at > now() - interval '24 hours')::text as metoo_24h,
+          count(*) filter (where channel = 'qr' and created_at > now() - interval '24 hours')::text as qr_24h,
+          count(*) filter (where channel in ('slack','slack_metoo') and created_at > now() - interval '7 days')::text as slack_7d,
+          max(created_at) filter (where channel in ('slack','slack_metoo')) as last_slack_at
+        from report
+      `);
+      const counts = rows[0];
+      const channel = env.SLACK_ALERTS_CHANNEL?.trim() || null;
+      return {
+        slack: {
+          configured: Boolean(env.SLACK_BOT_TOKEN),
+          mode: live.mode,
+          connected: live.connected,
+          error: live.error,
+          connected_at: live.connectedAt,
+          team_name: live.teamName,
+          bot_name: live.botName,
+          alerts_channel: channel,
+          last_alert: live.lastAlert,
+        },
+        reports: {
+          slack_24h: Number(counts?.slack_24h ?? 0),
+          metoo_24h: Number(counts?.metoo_24h ?? 0),
+          qr_24h: Number(counts?.qr_24h ?? 0),
+          slack_7d: Number(counts?.slack_7d ?? 0),
+          last_slack_at: counts?.last_slack_at ?? null,
+        },
       };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });

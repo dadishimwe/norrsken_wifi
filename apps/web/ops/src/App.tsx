@@ -3,12 +3,12 @@ import { opsApi, type OpsUser } from "./api";
 import { LoginPage } from "./LoginPage";
 import { DashboardView } from "./DashboardView";
 import { UsersAdmin } from "./UsersAdmin";
-import { ZonesAdmin } from "./ZonesAdmin";
+import { IntegrationsView } from "./IntegrationsView";
 import { GraphsView } from "./GraphsView";
 import { BrandLogo, ThemeToggle } from "./BrandLogo";
 import { useTheme } from "./theme";
 
-type Tab = "dashboard" | "graphs" | "zones" | "users";
+type Tab = "dashboard" | "graphs" | "integrations" | "users";
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
@@ -70,7 +70,7 @@ export function App() {
           [
             ["dashboard", "Dashboard"],
             ["graphs", "Graphs"],
-            ["zones", "Zones"],
+            ["integrations", "Integrations"],
             ...(user.role === "admin" ? [["users", "Users"] as const] : []),
           ] as const
         ).map(([id, label]) => (
@@ -88,8 +88,8 @@ export function App() {
       <main className="page">
         {tab === "users" ? (
           <UsersAdmin />
-        ) : tab === "zones" ? (
-          <ZonesAdmin canEdit={user.role === "admin"} />
+        ) : tab === "integrations" ? (
+          <IntegrationsView />
         ) : tab === "graphs" ? (
           <GraphsView />
         ) : (

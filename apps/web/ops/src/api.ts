@@ -18,6 +18,27 @@ export type OpsZone = {
   report_count?: number;
 };
 
+export type IntegrationsPayload = {
+  slack: {
+    configured: boolean;
+    mode: "off" | "socket" | "http";
+    connected: boolean;
+    error: string | null;
+    connected_at: string | null;
+    team_name: string | null;
+    bot_name: string | null;
+    alerts_channel: string | null;
+    last_alert: { at: string; ok: boolean; error: string | null } | null;
+  };
+  reports: {
+    slack_24h: number;
+    metoo_24h: number;
+    qr_24h: number;
+    slack_7d: number;
+    last_slack_at: string | null;
+  };
+};
+
 export type ZoneQr = {
   token: string;
   url: string;
@@ -216,6 +237,7 @@ export const opsApi = {
         zone: { id: string; label: string; floor: string | null; kind: string };
       }
     >(`/api/ops/zones/${id}/qr`),
+  integrations: () => api<IntegrationsPayload>("/api/ops/integrations"),
   reportQr: () =>
     api<
       ZoneQr & {

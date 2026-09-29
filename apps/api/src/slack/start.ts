@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 import type { Env } from "../env.js";
 import { registerSlackHandlers } from "./handlers.js";
 import { verifySlackSignature } from "./signature.js";
+import { markSlackConnected, markSlackFailed, markSlackOff, safeSlackError, slackIdentity } from "./status.js";
 
 function quietLogger() {
   const line = (level: string, msg: unknown) => {
@@ -33,6 +34,7 @@ export async function startSlack(
   env: Env,
 ): Promise<(() => Promise<void>) | null> {
   if (!env.SLACK_BOT_TOKEN) {
+    markSlackOff();
     http.log.info("slack disabled (SLACK_BOT_TOKEN unset)");
     return null;
   }
@@ -51,10 +53,16 @@ export async function startSlack(
   if (socketMode) {
     try {
       await bolt.start();
+      const identity = await slackIdentity(env.SLACK_BOT_TOKEN).catch(() => ({
+        teamName: null,
+        botName: null,
+      }));
+      markSlackConnected("socket", identity);
       http.log.info("slack socket mode connected");
     } catch (err) {
+      markSlackFailed("socket", err instanceof Error ? err.message : "slack_start_failed");
       http.log.error(
-        { err: err instanceof Error ? err.message : "slack_start_failed" },
+        { err: safeSlackError(err instanceof Error ? err.message : "slack_start_failed") },
         "slack_start_failed",
       );
       return null;
@@ -65,11 +73,17 @@ export async function startSlack(
   }
 
   if (!env.SLACK_SIGNING_SECRET) {
+    markSlackFailed("http", "missing_signing_secret");
     http.log.warn("slack HTTP mode needs SLACK_SIGNING_SECRET or SLACK_APP_TOKEN");
     return null;
   }
 
   mountHttp(http, bolt, env.SLACK_SIGNING_SECRET);
+  const identity = await slackIdentity(env.SLACK_BOT_TOKEN).catch(() => ({
+    teamName: null,
+    botName: null,
+  }));
+  markSlackConnected("http", identity);
   http.log.info("slack HTTP receiver mounted at /slack/events");
   return async () => {
     await bolt.stop?.();

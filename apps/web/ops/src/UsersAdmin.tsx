@@ -5,7 +5,7 @@ import { CustomSelect } from "./CustomSelect";
 
 const ROLE_OPTIONS = [
   { value: "viewer", label: "Viewer — dashboard only" },
-  { value: "admin", label: "Admin — manage users & zones" },
+  { value: "admin", label: "Admin — manage users" },
 ] as const;
 
 function formatLastLogin(iso: string | null | undefined): string {
