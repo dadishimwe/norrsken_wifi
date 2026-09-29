@@ -138,7 +138,7 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     }
     if (draft.zone_id !== zoneId) draft.zone_source = "selected";
     draft.zone_id = zoneId;
-    await ack({ response_action: "push", view: symptomsView(draft) });
+    await ack({ response_action: "update", view: symptomsView(draft) });
   });
 
   bolt.view("wifi_symptoms", async ({ ack, view }) => {
@@ -155,10 +155,10 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     const hasIncident = await zoneHasOpenIncident(db, draft.zone_id);
     const clarifier = nextClarifier(draft, hasIncident, ssids);
     if (clarifier) {
-      await ack({ response_action: "push", view: clarifierView(draft, clarifier) });
+      await ack({ response_action: "update", view: clarifierView(draft, clarifier) });
       return;
     }
-    await ack({ response_action: "push", view: appsView(draft) });
+    await ack({ response_action: "update", view: appsView(draft) });
   });
 
   bolt.view("wifi_clarifier", async ({ ack, view }) => {
@@ -172,10 +172,10 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     const hasIncident = await zoneHasOpenIncident(db, draft.zone_id);
     const again = nextClarifier(draft, hasIncident, ssids);
     if (again) {
-      await ack({ response_action: "push", view: clarifierView(draft, again) });
+      await ack({ response_action: "update", view: clarifierView(draft, again) });
       return;
     }
-    await ack({ response_action: "push", view: appsView(draft) });
+    await ack({ response_action: "update", view: appsView(draft) });
   });
 
   bolt.view("wifi_apps", async ({ ack, view }) => {
@@ -183,7 +183,7 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     draft.apps = many(view.state.values as Values, "apps", "app_ids")
       .filter((id): id is AppId => (APPS as readonly string[]).includes(id))
       .slice(0, 5);
-    await ack({ response_action: "push", view: detailsView(draft, ssids) });
+    await ack({ response_action: "update", view: detailsView(draft, ssids) });
   });
 
   bolt.view("wifi_details", async ({ ack, view, body }) => {
