@@ -94,6 +94,138 @@ export function homeView(opts: {
   };
 }
 
+/** One screen, same questions as the QR form: what, when, apps, where, note. */
+export function reportFormView(zones: ZoneChoice[], draft: SlackDraft): View {
+  const initialZone = zones.find((z) => z.id === draft.zone_id);
+  return modal(
+    "wifi_report_form",
+    "Report a problem",
+    draft,
+    [
+      {
+        type: "input",
+        block_id: "symptoms",
+        label: plain("What happened?"),
+        element: {
+          type: "checkboxes",
+          action_id: "symptom_ids",
+          options: SYMPTOMS.map((id) => ({
+            text: plain(SYMPTOM_LABELS[id]),
+            value: id,
+          })),
+        },
+      },
+      {
+        type: "context",
+        elements: [{ type: "mrkdwn", text: "Pick 1 to 3." }],
+      },
+      {
+        type: "input",
+        block_id: "when",
+        label: plain("When?"),
+        element: {
+          type: "static_select",
+          action_id: "when_bucket",
+          initial_option: {
+            text: plain(WHEN_LABELS[draft.when_bucket]),
+            value: draft.when_bucket,
+          },
+          options: WHEN_BUCKETS.map((id) => ({
+            text: plain(WHEN_LABELS[id]),
+            value: id,
+          })),
+        },
+      },
+      {
+        type: "input",
+        optional: true,
+        block_id: "occurred_date",
+        label: plain("Date"),
+        element: {
+          type: "datepicker",
+          action_id: "date",
+          placeholder: plain("Optional"),
+        },
+      },
+      {
+        type: "input",
+        optional: true,
+        block_id: "occurred_time",
+        label: plain("Time"),
+        element: {
+          type: "timepicker",
+          action_id: "time",
+          placeholder: plain("Optional"),
+        },
+      },
+      {
+        type: "context",
+        elements: [{ type: "mrkdwn", text: "Date and time are optional. Leave them blank to keep the When answer only." }],
+      },
+      {
+        type: "input",
+        optional: true,
+        block_id: "apps",
+        label: plain("Which apps?"),
+        element: {
+          type: "multi_static_select",
+          action_id: "app_ids",
+          placeholder: plain("Optional — up to 5"),
+          max_selected_items: 5,
+          options: APPS.map((id) => ({
+            text: plain(APP_LABELS[id]),
+            value: id,
+          })),
+        },
+      },
+      {
+        type: "input",
+        optional: true,
+        block_id: "other_app",
+        label: plain("Which other app?"),
+        element: {
+          type: "plain_text_input",
+          action_id: "other_app",
+          placeholder: plain("Optional"),
+          max_length: 80,
+        },
+      },
+      {
+        type: "input",
+        block_id: "zone",
+        label: plain("Where?"),
+        element: {
+          type: "static_select",
+          action_id: "zone_id",
+          placeholder: plain("Choose a place"),
+          options: zones.map((z) => ({ text: plain(z.label), value: z.id })),
+          ...(initialZone
+            ? { initial_option: { text: plain(initialZone.label), value: initialZone.id } }
+            : {}),
+        },
+      },
+      {
+        type: "context",
+        elements: [{ type: "mrkdwn", text: "C is a classroom. L is a level, so C2L3 is Classroom 2, level 3." }],
+      },
+      {
+        type: "input",
+        optional: true,
+        block_id: "note",
+        label: plain("Anything else?"),
+        element: {
+          type: "plain_text_input",
+          action_id: "note",
+          placeholder: plain("Optional"),
+          multiline: true,
+          max_length: 400,
+        },
+      },
+    ],
+    "Submit",
+  );
+}
+
 export function zoneView(zones: ZoneChoice[], draft: SlackDraft): View {
   const groups = new Map<string, ZoneChoice[]>();
   for (const z of zones) {
