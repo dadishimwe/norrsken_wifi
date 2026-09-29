@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
-export type SelectOption = { value: string; label: string };
+export type SelectOption = { value: string; label: ReactNode };
 
 type Props = {
   label: string;

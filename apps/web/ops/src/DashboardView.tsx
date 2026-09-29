@@ -11,6 +11,7 @@ import {
   labelSymptom,
   labelWhen,
 } from "./labels";
+import { AppLabel, ChannelLabel } from "./marks";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -211,17 +212,17 @@ export function DashboardView({ canEdit = false }: Props) {
         <div className="kpi">
           <div className="label">Open incidents</div>
           <div className="value">{fmtNum(kpi?.open_incidents)}</div>
-          <div className="hint">Clustered outages (M4 engine)</div>
+          <div className="hint">Related reports grouped as one outage</div>
         </div>
         <div className="kpi">
           <div className="label">MTTA (30d)</div>
           <div className="value">{fmtNum(kpi?.mtta_minutes_30d, 0)}</div>
-          <div className="hint">minutes to acknowledge</div>
+          <div className="hint">Average minutes to acknowledge</div>
         </div>
         <div className="kpi">
           <div className="label">MTTR (30d)</div>
           <div className="value">{fmtNum(kpi?.mttr_minutes_30d, 0)}</div>
-          <div className="hint">minutes to resolve</div>
+          <div className="hint">Average minutes to resolve</div>
         </div>
       </div>
 
@@ -308,6 +309,7 @@ export function DashboardView({ canEdit = false }: Props) {
                 <thead>
                   <tr>
                     <th>When</th>
+                    <th>Source</th>
                     <th>Symptoms</th>
                     <th>Apps</th>
                     <th>Timing</th>
@@ -325,6 +327,9 @@ export function DashboardView({ canEdit = false }: Props) {
                     <tr key={r.id} className={busy && pending?.id === r.id ? "row-busy" : undefined}>
                       <td title={r.created_at}>{timeAgo(r.created_at)}</td>
                       <td>
+                        <ChannelLabel channel={r.channel} />
+                      </td>
+                      <td>
                         {r.symptoms.map((s) => (
                           <span className="pill" key={s}>
                             {labelSymptom(s)}
@@ -335,7 +340,7 @@ export function DashboardView({ canEdit = false }: Props) {
                         {r.apps.length
                           ? r.apps.map((a) => (
                               <span className="pill" key={a}>
-                                {labelAppEntry(a, r.clarifiers)}
+                                <AppLabel id={a} label={labelAppEntry(a, r.clarifiers)} />
                               </span>
                             ))
                           : "—"}

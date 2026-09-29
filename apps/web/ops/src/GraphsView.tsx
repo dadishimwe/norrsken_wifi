@@ -3,6 +3,7 @@ import { downloadCsv, opsApi, type AnalyticsPayload } from "./api";
 import { HorizontalBars, VerticalBars, formatDayTick } from "./Charts";
 import { CustomSelect } from "./CustomSelect";
 import { labelApp, labelSymptom } from "./labels";
+import { AppLabel, ChannelLabel } from "./marks";
 
 type Days = 7 | 14 | 30 | 90;
 type Channel = "all" | "qr" | "slack";
@@ -103,7 +104,12 @@ export function GraphsView() {
   const appPoints = data.apps.map((a) => {
     const n = Number(a.n) || 0;
     const name = labelApp(a.app);
-    return { label: name, value: n, title: `${name}: ${n} mention${n === 1 ? "" : "s"}` };
+    return {
+      label: name,
+      value: n,
+      title: `${name}: ${n} mention${n === 1 ? "" : "s"}`,
+      icon: <AppLabel id={a.app} label={name} />,
+    };
   });
   const symptomPoints = data.symptoms.map((s) => {
     const n = Number(s.n) || 0;
@@ -190,8 +196,8 @@ export function GraphsView() {
           onChange={(v) => setChannel(v as Channel)}
           options={[
             { value: "all", label: "All" },
-            { value: "qr", label: "QR" },
-            { value: "slack", label: "Slack" },
+            { value: "qr", label: <ChannelLabel channel="qr" /> },
+            { value: "slack", label: <ChannelLabel channel="slack" /> },
           ]}
         />
         <CustomSelect
@@ -212,7 +218,7 @@ export function GraphsView() {
         <div className="kpi">
           <div className="label">Open incidents</div>
           <div className="value">{kpi?.open_incidents ?? "—"}</div>
-          <div className="hint">Clusters from M4</div>
+          <div className="hint">Related reports grouped as one outage</div>
         </div>
         <div className="kpi">
           <div className="label">Window total</div>
@@ -222,7 +228,11 @@ export function GraphsView() {
         <div className="kpi">
           <div className="label">Top app</div>
           <div className="value" style={{ fontSize: "1.25rem" }}>
-            {appPoints[0]?.label ?? "—"}
+            {appPoints[0] ? (
+              <AppLabel id={data.apps[0]?.app ?? ""} label={appPoints[0].label} />
+            ) : (
+              "—"
+            )}
           </div>
           <div className="hint">
             {appPoints[0] ? `${appPoints[0].value} mentions` : "no data"}

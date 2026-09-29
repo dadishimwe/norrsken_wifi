@@ -1,6 +1,6 @@
 import { useState, type MouseEvent, type ReactNode } from "react";
 
-type Point = { label: string; value: number; title?: string };
+type Point = { label: string; value: number; title?: string; icon?: ReactNode };
 
 const MONTHS_SHORT = [
   "Jan",
@@ -187,7 +187,9 @@ export function HorizontalBars({
               onMouseMove={(e) => place(text, e)}
               onMouseLeave={hide}
             >
-              <div className="chart-h-label">{item.label}</div>
+              <div className="chart-h-label">
+                {item.icon ?? <span>{item.label}</span>}
+              </div>
               <div className="chart-h-track">
                 <div className="chart-h-bar" style={{ width: `${pct}%` }} />
               </div>

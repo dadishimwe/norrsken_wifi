@@ -367,12 +367,48 @@ a {
 }
 
 .pill {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   padding: 0.1rem 0.4rem;
   border: 1px solid var(--border-strong);
   font-size: 0.7rem;
   margin: 0 0.2rem 0.2rem 0;
   color: var(--text-muted);
+}
+
+.mark-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.mark-tile,
+.mark-mono {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mark-tile {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.mark-tile svg,
+.mark-mono svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.mark-mono svg {
+  fill: currentColor;
 }
 
 .btn {
@@ -1079,8 +1115,16 @@ html[data-theme="dark"] .login-card {
 }
 
 .chart-h-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.8rem;
   color: var(--text);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.chart-h-label span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
