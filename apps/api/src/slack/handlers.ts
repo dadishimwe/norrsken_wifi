@@ -213,7 +213,7 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     draft.zone_source = "selected";
     if (draft.symptoms.length === 0) draft.symptoms = ["no_internet"];
     try {
-      const saved = await submitDraft(db, env, draft, body.user.id, "slack_metoo");
+      const saved = await submitDraft(db, env, draft, body.user.id, "slack_metoo", undefined, draft.incident_id);
       await ack({ response_action: "update", view: thanksView(saved.recent_count) });
     } catch (err) {
       await ack({
@@ -246,8 +246,9 @@ async function submitDraft(
   slackUserId: string,
   channel: "slack" | "slack_metoo",
   occurredAt?: string,
+  attachIncidentId?: string,
 ) {
-  return createReport(
+  const saved = await createReport(
     db,
     env,
     {
@@ -265,6 +266,22 @@ async function submitDraft(
     },
     undefined,
   );
+  if (attachIncidentId) {
+    await db.query(
+      `
+      update report
+      set incident_id = $1
+      where id = $2
+        and incident_id is null
+        and exists (
+          select 1 from incident
+          where id = $1 and status in ('open','investigating')
+        )
+      `,
+      [attachIncidentId, saved.report_id],
+    );
+  }
+  return saved;
 }
 
 async function networkStatus(db: Pool): Promise<string> {

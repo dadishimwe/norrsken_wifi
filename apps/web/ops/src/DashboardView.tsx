@@ -132,6 +132,7 @@ export function DashboardView({ canEdit = false }: Props) {
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const [pending, setPending] = useState<PendingDelete | null>(null);
+  const [resolveId, setResolveId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   function flash(msg: string) {
@@ -178,6 +179,23 @@ export function DashboardView({ canEdit = false }: Props) {
     }
   }
 
+  async function actOnIncident(id: string, action: "ack" | "investigating" | "resolved") {
+    setBusy(true);
+    try {
+      await opsApi.incidentAction(id, action);
+      setResolveId(null);
+      flash(
+        action === "ack" ? "Acknowledged" : action === "investigating" ? "Marked investigating" : "Resolved",
+      );
+      setTick((t) => t + 1);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "update_failed";
+      setError(`Could not update the incident: ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error && !data) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;
 
@@ -187,6 +205,17 @@ export function DashboardView({ canEdit = false }: Props) {
   return (
     <>
       {toast ? <div className="toast">{toast}</div> : null}
+      <ConfirmDialog
+        open={!!resolveId}
+        title="Resolve this incident?"
+        body="This records the time it was closed. It does not record who closed it."
+        confirmLabel="Resolve"
+        busy={busy}
+        onCancel={() => !busy && setResolveId(null)}
+        onConfirm={() => {
+          if (resolveId) void actOnIncident(resolveId, "resolved");
+        }}
+      />
       <ConfirmDialog
         open={!!pending}
         title="Delete this report?"
@@ -255,8 +284,8 @@ export function DashboardView({ canEdit = false }: Props) {
         <section className="panel">
           <h2>Open incidents</h2>
           <p className="muted" style={{ marginBottom: "0.75rem" }}>
-            Groups of related reports (same area/time). Empty until the incident engine (M4) runs —
-            individual reports still appear in the feed below.
+            Opens when three people report the same place within 10 minutes, or three places each
+            have two people within 15 minutes. Acknowledge and resolve record the time only.
           </p>
           {data.incidents.length === 0 ? (
             <p className="empty">No open incidents yet.</p>
@@ -266,22 +295,67 @@ export function DashboardView({ canEdit = false }: Props) {
                 <thead>
                   <tr>
                     <th>Opened</th>
-                    <th>Scope</th>
-                    <th>Zones</th>
+                    <th>Status</th>
+                    <th>Places</th>
                     <th>Reports</th>
+                    <th className="col-actions" aria-label="Actions" />
                   </tr>
                 </thead>
                 <tbody>
-                  {data.incidents.map((i) => (
-                    <tr key={i.id}>
-                      <td>{timeAgo(i.opened_at)}</td>
-                      <td>
-                        {i.status} · {i.scope}
-                      </td>
-                      <td>{i.zones.join(", ")}</td>
-                      <td>{fmtNum(i.report_count)}</td>
-                    </tr>
-                  ))}
+                  {data.incidents.map((i) => {
+                    const labels = new Map(data.zones.map((z) => [z.zone_id, z.label]));
+                    const places = i.zones.map((id) => labels.get(id) ?? id).join(", ");
+                    const quiet =
+                      !!i.last_report_at &&
+                      Date.now() - new Date(i.last_report_at).getTime() >= 20 * 60_000;
+                    return (
+                      <tr key={i.id}>
+                        <td>{timeAgo(i.opened_at)}</td>
+                        <td>
+                          {i.status === "investigating" ? "Investigating" : "Open"}
+                          {i.scope === "campus" ? " · Across the house" : ""}
+                          {i.root_cause === "provider_side_suspected" ? (
+                            <span className="pill">App outage likely</span>
+                          ) : null}
+                          {quiet ? <div className="muted">Quiet for 20 minutes</div> : null}
+                        </td>
+                        <td>{places}</td>
+                        <td>{fmtNum(i.report_count)}</td>
+                        <td className="col-actions">
+                          <div className="incident-actions">
+                            {!i.acked_at ? (
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                disabled={busy}
+                                onClick={() => void actOnIncident(i.id, "ack")}
+                              >
+                                Acknowledge
+                              </button>
+                            ) : null}
+                            {i.status === "open" ? (
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                disabled={busy}
+                                onClick={() => void actOnIncident(i.id, "investigating")}
+                              >
+                                Investigating
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="btn"
+                              disabled={busy}
+                              onClick={() => setResolveId(i.id)}
+                            >
+                              Resolve
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

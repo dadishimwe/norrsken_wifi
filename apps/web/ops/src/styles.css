@@ -657,6 +657,13 @@ html[data-theme="dark"] .login-card {
   min-width: 960px;
 }
 
+.incident-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .table .col-actions {
   width: 2rem;
   padding-left: 0.15rem;

@@ -1,6 +1,6 @@
 # Incident rules
 
-Documented fully in M4. Thresholds live in `config/engine.json`.
+The engine runs after each saved report. Thresholds live in `config/engine.json`.
 
 ## Detection (summary)
 

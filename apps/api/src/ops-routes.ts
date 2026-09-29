@@ -308,7 +308,13 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         db.query(`select * from v_kpi_daily`),
         db.query(`select * from v_zone_health`),
         db.query(`select * from v_reports_full order by created_at desc limit 50`),
-        db.query(`select * from v_open_incidents`),
+        db.query(`
+          select v.*, i.root_cause, (
+            select max(r.created_at) from report r where r.incident_id = v.id
+          ) as last_report_at
+          from v_open_incidents v
+          join incident i on i.id = v.id
+        `),
       ]);
 
       return {
@@ -317,6 +323,49 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         reports: reports.rows,
         incidents: incidents.rows,
       };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  const incidentActionSchema = z.object({
+    action: z.enum(["ack", "investigating", "resolved"]),
+  });
+
+  app.post("/api/ops/incidents/:id", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const id = (req.params as { id: string }).id;
+      const parsed = incidentActionSchema.safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "bad_action" });
+      const action = parsed.data.action;
+      const { rows } = await db.query(
+        `
+        update incident
+        set
+          acked_at = case
+            when $2 in ('ack', 'investigating') then coalesce(acked_at, now())
+            else acked_at
+          end,
+          status = case
+            when $2 = 'investigating' then 'investigating'
+            when $2 = 'resolved' then 'resolved'
+            else status
+          end,
+          resolved_at = case
+            when $2 = 'resolved' then coalesce(resolved_at, now())
+            else resolved_at
+          end
+        where id = $1
+          and status in ('open', 'investigating')
+        returning id, status, acked_at, resolved_at
+        `,
+        [id, action],
+      );
+      const incident = rows[0];
+      if (!incident) return reply.code(404).send({ error: "not_found" });
+      return { incident };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       throw err;

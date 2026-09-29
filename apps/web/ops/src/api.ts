@@ -67,13 +67,16 @@ export type DashboardPayload = {
   incidents: Array<{
     id: string;
     opened_at: string;
+    acked_at?: string | null;
     status: string;
     scope: string;
     zones: string[];
     symptoms: string[];
     apps: string[];
     suspected_domain: string | null;
+    root_cause?: string | null;
     report_count: string | number;
+    last_report_at?: string | null;
   }>;
 };
 
@@ -143,6 +146,11 @@ export const opsApi = {
     api<ReportsPage>(`/api/ops/reports?page=${page}&limit=${limit}`),
   deleteReport: (id: string) =>
     api<{ ok: boolean; deleted: string }>(`/api/ops/reports/${id}`, { method: "DELETE" }),
+  incidentAction: (id: string, action: "ack" | "investigating" | "resolved") =>
+    api<{ incident: { id: string; status: string } }>(`/api/ops/incidents/${id}`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }),
   analytics: (opts?: { days?: number; channel?: string; zone_id?: string | null }) => {
     const sp = new URLSearchParams();
     if (opts?.days) sp.set("days", String(opts.days));
