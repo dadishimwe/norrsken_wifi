@@ -254,6 +254,15 @@ export function reportFormView(draft: SlackDraft): View {
       ...(draft.contact_ok
         ? [
             {
+              type: "context" as const,
+              elements: [
+                {
+                  type: "mrkdwn" as const,
+                  text: "Any one is enough. Leave a phone or email if you want an update.",
+                },
+              ],
+            },
+            {
               type: "input" as const,
               optional: true,
               block_id: "contact_name",

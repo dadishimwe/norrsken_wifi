@@ -196,6 +196,7 @@ async function run(b: Bootstrap) {
   let exactMinute = now.getMinutes();
   let calOpen = false;
   let timeOpen: "hour" | "minute" | null = null;
+  let showExact = false;
   let outsideCloser: ((e: Event) => void) | null = null;
   let calYear = now.getFullYear();
   let calMonth = now.getMonth();
@@ -293,6 +294,7 @@ async function run(b: Bootstrap) {
       if (typeof d.started === "number" && d.started > 0 && d.started <= Date.now()) {
         started = d.started;
       }
+      if (exactTouched) showExact = true;
     } catch {
       clearDraft();
     }
@@ -389,6 +391,7 @@ async function run(b: Bootstrap) {
           </div>
         </section>
         ${privacyLine()}
+        ${calOpen || timeOpen ? `<div class="picker-backdrop"></div>` : ""}
       </div>
     `;
     bind();
@@ -420,7 +423,7 @@ async function run(b: Bootstrap) {
             )
             .join("")}
         </div>
-        ${exactTimeHtml()}
+        ${exactTimeSection()}
       </div>
       <div class="field-block">
         <h2 class="field-title">Which apps?</h2>
@@ -453,6 +456,7 @@ async function run(b: Bootstrap) {
           <span>I'm happy to be contacted about this</span>
         </label>
         <div class="contact-fields" ${contactOk ? "" : "hidden"}>
+          <p class="hint">Leave your phone or email if you want an update. Any one is enough.</p>
           <label for="contact-name">Full name <span class="hint-inline">(optional)</span></label>
           <input id="contact-name" class="text-input" type="text" maxlength="80"
             value="${escapeHtml(contactName)}" autocomplete="name" />
@@ -528,10 +532,17 @@ async function run(b: Bootstrap) {
     return `<div class="wheel" data-wheel="${kind}" role="listbox" aria-label="${label}">${html}</div>`;
   }
 
+  function exactTimeSection(): string {
+    if (!showExact) {
+      return `<button type="button" class="when-toggle" data-action="show-exact">Specify a different time</button>`;
+    }
+    return `${exactTimeHtml()}<button type="button" class="when-toggle" data-action="hide-exact">Use the closest time instead</button>`;
+  }
+
   function exactTimeHtml(): string {
     return `
       <div class="when-exact">
-        <p class="hint">Exact time <span class="hint-inline">(optional)</span></p>
+        <p class="hint">Date and time</p>
         <div class="when-exact-row">
           <div class="cal-anchor">
             <button type="button" class="when-date" data-action="toggle-cal" aria-expanded="${calOpen ? "true" : "false"}" aria-label="Choose date">
@@ -556,6 +567,33 @@ async function run(b: Bootstrap) {
           </div>
         </div>
       </div>`;
+  }
+
+  function placeOpenPicker() {
+    if (!calOpen && !timeOpen) return;
+    const pop = root.querySelector<HTMLElement>(calOpen ? ".cal-pop" : ".time-pop");
+    const trigger = root.querySelector<HTMLElement>(
+      calOpen
+        ? "[data-action='toggle-cal']"
+        : timeOpen === "hour"
+          ? "[data-action='toggle-hour']"
+          : "[data-action='toggle-minute']",
+    );
+    if (!pop || !trigger) return;
+    const margin = 12;
+    const rect = trigger.getBoundingClientRect();
+    const width = pop.offsetWidth;
+    const height = pop.offsetHeight;
+    let left = timeOpen ? rect.left + rect.width / 2 - width / 2 : rect.left;
+    let top = rect.bottom + 8;
+    if (left + width > window.innerWidth - margin) left = window.innerWidth - margin - width;
+    if (left < margin) left = margin;
+    if (top + height > window.innerHeight - margin) {
+      const above = rect.top - 8 - height;
+      top = above >= margin ? above : Math.max(margin, window.innerHeight - margin - height);
+    }
+    pop.style.top = `${Math.round(top)}px`;
+    pop.style.left = `${Math.round(left)}px`;
   }
 
   function bind() {
@@ -622,6 +660,25 @@ async function run(b: Bootstrap) {
         btn.classList.add("on");
         saveDraft();
       });
+    });
+    root.querySelector("[data-action='show-exact']")?.addEventListener("click", () => {
+      showExact = true;
+      render();
+    });
+    root.querySelector("[data-action='hide-exact']")?.addEventListener("click", () => {
+      showExact = false;
+      exactTouched = false;
+      calOpen = false;
+      timeOpen = null;
+      const clock = new Date();
+      exactDate = startOfDay(clock);
+      exactHour = clock.getHours();
+      exactMinute = clock.getMinutes();
+      calYear = clock.getFullYear();
+      calMonth = clock.getMonth();
+      syncTextInputs();
+      saveDraft();
+      render();
     });
     root.querySelector("[data-action='toggle-cal']")?.addEventListener("click", () => {
       calOpen = !calOpen;
@@ -711,6 +768,7 @@ async function run(b: Bootstrap) {
       if (!on) return;
       wheel.scrollTop = on.offsetTop - wheel.clientHeight / 2 + on.clientHeight / 2;
     });
+    placeOpenPicker();
     root.querySelector<HTMLInputElement>("#contact-ok")?.addEventListener("change", (ev) => {
       contactOk = (ev.currentTarget as HTMLInputElement).checked;
       if (!contactOk) {
