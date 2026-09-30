@@ -2,7 +2,7 @@ import type { App } from "@slack/bolt";
 import type { View } from "@slack/types";
 import type { Pool } from "pg";
 import { computeActorHash } from "@norrsken/db";
-import { APPS, SYMPTOMS, UNIVERSAL_ZONE_ID, USER_TYPES, type App as AppId, type Symptom, type UserType } from "@norrsken/shared";
+import { APPS, SYMPTOMS, UNIVERSAL_ZONE_ID, type App as AppId, type Symptom } from "@norrsken/shared";
 import type { Env } from "../env.js";
 import { HttpError, createReport } from "../reports-service.js";
 import {
@@ -92,10 +92,6 @@ function validEmail(value: string): boolean {
   return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function isUserType(value: string): value is UserType {
-  return (USER_TYPES as readonly string[]).includes(value);
-}
-
 function draftFromValues(view: { private_metadata?: string; state?: { values?: Values } }): SlackDraft {
   const draft = parseDraft(view.private_metadata);
   const values = (view.state?.values ?? {}) as Values;
@@ -121,10 +117,6 @@ function draftFromValues(view: { private_metadata?: string; state?: { values?: V
     ...(note ? { note } : {}),
   };
   draft.company = text(values, "company", "company").slice(0, 120);
-  const role = one(values, "user_type", "user_type");
-  draft.user_type = isUserType(role) ? role : "";
-  draft.user_type_other =
-    draft.user_type === "other" ? text(values, "user_type_other", "user_type_other").slice(0, 80) : "";
   draft.contact_ok = checked(values, "contact_ok", "contact_ok");
   draft.contact_name = draft.contact_ok ? text(values, "contact_name", "name").slice(0, 80) : "";
   draft.contact_phone = draft.contact_ok ? text(values, "contact_phone", "phone").slice(0, 40) : "";
@@ -201,32 +193,6 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     });
   });
 
-  bolt.action("user_type", async ({ ack, body, client }) => {
-    await ack();
-    if (!("view" in body) || !body.view) return;
-    if (body.view.callback_id === "wifi_metoo") {
-      const draft = parseDraft(body.view.private_metadata);
-      const values = (body.view.state?.values ?? {}) as Values;
-      const role = one(values, "user_type", "user_type");
-      draft.user_type = isUserType(role) ? role : "";
-      draft.user_type_other =
-        draft.user_type === "other" ? text(values, "user_type_other", "user_type_other").slice(0, 80) : "";
-      draft.company = text(values, "company", "company").slice(0, 120);
-      await client.views.update({
-        view_id: body.view.id,
-        hash: body.view.hash,
-        view: metooZoneView(draft.incident_id ?? "", draft.symptoms, draft),
-      });
-      return;
-    }
-    const draft = draftFromValues(body.view);
-    await client.views.update({
-      view_id: body.view.id,
-      hash: body.view.hash,
-      view: reportFormView(draft),
-    });
-  });
-
   bolt.action("contact_ok", async ({ ack, body, client }) => {
     await ack();
     if (!("view" in body) || !body.view) return;
@@ -243,10 +209,6 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     const symptomErr = symptomError(draft.symptoms);
     const errors: Record<string, string> = {};
     if (symptomErr) errors.symptoms = symptomErr;
-    if (!draft.user_type) errors.user_type = "Tell us who you are.";
-    if (draft.user_type === "other" && !draft.user_type_other.trim()) {
-      errors.user_type_other = "Please say who you are.";
-    }
     if (!draft.company.trim()) errors.company = "Tell us the company or place.";
     if (!validEmail(draft.contact_email)) errors.contact_email = "Enter a valid email.";
     if (Object.keys(errors).length > 0) {
@@ -267,22 +229,12 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
 
   bolt.view("wifi_metoo", async ({ ack, view, body }) => {
     const draft = parseDraft(view.private_metadata);
-    const values = view.state.values as Values;
-    const company = text(values, "company", "company").slice(0, 120);
-    const role = one(values, "user_type", "user_type");
-    const userType = isUserType(role) ? role : "";
-    const userTypeOther = userType === "other" ? text(values, "user_type_other", "user_type_other").slice(0, 80) : "";
-    const errors: Record<string, string> = {};
-    if (!userType) errors.user_type = "Tell us who you are.";
-    if (userType === "other" && !userTypeOther) errors.user_type_other = "Please say who you are.";
-    if (!company) errors.company = "Tell us the company or place.";
-    if (Object.keys(errors).length > 0) {
-      await ack({ response_action: "errors", errors });
+    const company = text(view.state.values as Values, "company", "company").slice(0, 120);
+    if (!company) {
+      await ack({ response_action: "errors", errors: { company: "Tell us the company or place." } });
       return;
     }
     draft.company = company;
-    draft.user_type = userType;
-    draft.user_type_other = userTypeOther;
     draft.zone_id = UNIVERSAL_ZONE_ID;
     draft.zone_source = "selected";
     draft.contact_ok = false;
@@ -323,7 +275,6 @@ async function submitDraft(
   occurredAt?: string,
   attachIncidentId?: string,
 ) {
-  if (!draft.user_type) throw new HttpError(400, "Tell us who you are.");
   const saved = await createReport(
     db,
     env,
@@ -339,8 +290,7 @@ async function submitDraft(
       clarifiers: draft.clarifiers,
       device_class: draft.device_class,
       company: draft.company,
-      user_type: draft.user_type,
-      ...(draft.user_type === "other" ? { user_type_other: draft.user_type_other } : {}),
+      user_type: "member",
       contact_ok: draft.contact_ok,
       ...(draft.contact_name ? { contact_name: draft.contact_name } : {}),
       ...(draft.contact_phone ? { contact_phone: draft.contact_phone } : {}),

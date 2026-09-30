@@ -268,7 +268,7 @@ export function GraphsView() {
         <section className="panel chart-panel">
           <div className="chart-head">
             <h2>Who reported</h2>
-            <span className="chart-kind">What they said they were</span>
+            <span className="chart-kind">Slack reports count as members</span>
           </div>
           <HorizontalBars items={whoPoints} maxItems={4} />
         </section>

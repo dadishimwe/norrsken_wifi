@@ -222,8 +222,8 @@ export async function createReport(
         contactName,
         contactPhone,
         contactEmail,
-        input.user_type,
-        input.user_type === "other" ? blankToNull(input.user_type_other) : null,
+        input.channel === "qr" ? input.user_type : "member",
+        input.channel === "qr" && input.user_type === "other" ? blankToNull(input.user_type_other) : null,
       ],
     );
     if (!rows[0]) throw new Error("insert failed");
