@@ -47,6 +47,7 @@ export async function buildApp() {
           "body.session_token",
           "body.edit_token",
           "body.password",
+          "body.current_password",
           "body.contact_name",
           "body.contact_phone",
           "body.contact_email",

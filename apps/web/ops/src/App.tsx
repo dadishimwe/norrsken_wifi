@@ -5,6 +5,7 @@ import { DashboardView } from "./DashboardView";
 import { UsersAdmin } from "./UsersAdmin";
 import { IntegrationsView } from "./IntegrationsView";
 import { GraphsView } from "./GraphsView";
+import { AccountDialog } from "./AccountDialog";
 import { BrandLogo, ThemeToggle } from "./BrandLogo";
 import { useTheme } from "./theme";
 
@@ -15,6 +16,8 @@ export function App() {
   const [user, setUser] = useState<OpsUser | null>(null);
   const [booting, setBooting] = useState(true);
   const [tab, setTab] = useState<Tab>("dashboard");
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountToast, setAccountToast] = useState<string | null>(null);
 
   useEffect(() => {
     opsApi
@@ -58,6 +61,9 @@ export function App() {
           <div className="user-chip">
             <em>{user.display_name}</em> · {user.role}
           </div>
+          <button className="btn btn-ghost" type="button" onClick={() => setAccountOpen(true)}>
+            Account
+          </button>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <button className="btn btn-ghost" type="button" onClick={logout}>
             Sign out
@@ -84,6 +90,20 @@ export function App() {
           </button>
         ))}
       </nav>
+
+      {accountToast ? <div className="toast">{accountToast}</div> : null}
+      {accountOpen ? (
+        <AccountDialog
+          user={user}
+          onClose={() => setAccountOpen(false)}
+          onSaved={(next) => {
+            setUser(next);
+            setAccountOpen(false);
+            setAccountToast("Account updated");
+            window.setTimeout(() => setAccountToast(null), 2200);
+          }}
+        />
+      ) : null}
 
       <main className="page">
         {tab === "users" ? (

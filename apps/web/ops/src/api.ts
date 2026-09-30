@@ -170,6 +170,11 @@ export const opsApi = {
       body: JSON.stringify({ username, password }),
     }),
   logout: () => api<{ ok: boolean }>("/api/ops/logout", { method: "POST" }),
+  updateMe: (body: { current_password: string; username?: string; password?: string }) =>
+    api<{ user: OpsUser }>("/api/ops/me", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   dashboard: () => api<DashboardPayload>("/api/ops/dashboard"),
   reports: (page = 1, limit = 25) =>
     api<ReportsPage>(`/api/ops/reports?page=${page}&limit=${limit}`),

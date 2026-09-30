@@ -218,6 +218,68 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
     }
   });
 
+  const selfAccountSchema = z.object({
+    current_password: z.string().min(1).max(128),
+    username: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9._-]+$/i, "username: letters, numbers, . _ -")
+      .optional(),
+    password: z.string().min(12).max(128).optional(),
+  });
+
+  app.patch("/api/ops/me", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      const parsed = selfAccountSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: parsed.error.issues.map((i) => i.message).join("; ") || "invalid_body",
+        });
+      }
+      const { rows } = await db.query<{ password_hash: string }>(
+        `select password_hash from ops_user where id = $1 and active = true`,
+        [me.id],
+      );
+      const hash = rows[0]?.password_hash;
+      if (!hash || !verifyPassword(parsed.data.current_password, hash)) {
+        return reply.code(401).send({ error: "wrong_password" });
+      }
+
+      const nextUsername = parsed.data.username?.toLowerCase();
+      const usernameChanged = Boolean(nextUsername && nextUsername !== me.username);
+      if (!usernameChanged && !parsed.data.password) {
+        return reply.code(400).send({ error: "no_change" });
+      }
+
+      let user = me;
+      if (usernameChanged && nextUsername) {
+        const updated = await setOpsUserUsername(db, me.id, nextUsername);
+        if (!updated) return reply.code(404).send({ error: "not_found" });
+        user = updated;
+      }
+      if (parsed.data.password) {
+        await setOpsUserPassword(db, me.id, parsed.data.password);
+      }
+      return {
+        user: {
+          id: user.id,
+          username: user.username,
+          display_name: user.display_name,
+          role: user.role,
+        },
+      };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
+        return reply.code(409).send({ error: "username_taken" });
+      }
+      throw err;
+    }
+  });
+
   app.get("/api/ops/users", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
