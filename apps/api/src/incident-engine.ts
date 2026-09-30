@@ -242,10 +242,7 @@ export async function evaluateIncidents(db: Pool, now = new Date()): Promise<voi
       );
     }
     if (!incidentId || cluster.reportIds.length === 0) continue;
-    await db.query(`update report set incident_id = $1 where id = any($2::uuid[])`, [
-      incidentId,
-      cluster.reportIds,
-    ]);
+    await claimReports(db, incidentId, cluster.reportIds);
     if (cluster.scope === "campus") {
       await db.query(
         `
@@ -272,6 +269,71 @@ export async function evaluateIncidents(db: Pool, now = new Date()): Promise<voi
       );
     }
   }
+  await closeEmptyReportIncidents(db);
+}
+
+/** One incident per report, until a grouped outage claims it. */
+export async function ensureReportIncident(db: Pool, reportId: string): Promise<void> {
+  await db.query(
+    `
+    with target as (
+      select id, created_at, zone_id, apps, symptoms
+      from report
+      where id = $1 and incident_id is null
+    ),
+    created as (
+      insert into incident (opened_at, scope, zones, apps, symptoms, severity)
+      select created_at, 'report', array[zone_id], apps, symptoms, 1
+      from target
+      returning id
+    )
+    update report r
+    set incident_id = created.id
+    from created, target
+    where r.id = target.id
+      and r.incident_id is null
+    `,
+    [reportId],
+  );
+}
+
+/** Move reports onto a grouped incident, leaving ones someone is already working. */
+async function claimReports(db: Pool, incidentId: string, reportIds: string[]): Promise<void> {
+  await db.query(
+    `
+    update report r
+    set incident_id = $1
+    where r.id = any($2::uuid[])
+      and (
+        r.incident_id is null
+        or r.incident_id = $1
+        or exists (
+          select 1 from incident i
+          where i.id = r.incident_id
+            and i.scope = 'report'
+            and i.assigned_to is null
+            and i.acked_at is null
+            and not exists (select 1 from incident_comment c where c.incident_id = i.id)
+        )
+      )
+    `,
+    [incidentId, reportIds],
+  );
+}
+
+export async function closeEmptyReportIncidents(db: Pool): Promise<void> {
+  await db.query(
+    `
+    update incident i
+    set status = 'resolved', resolved_at = now()
+    where i.scope = 'report'
+      and i.status in ('open', 'investigating')
+      and i.acked_at is null
+      and i.assigned_to is null
+      and not exists (select 1 from incident_comment c where c.incident_id = i.id)
+      and not exists (select 1 from report r where r.incident_id = i.id)
+    `,
+  );
 }
 
 function sameZones(a: string[], b: string[]): boolean {

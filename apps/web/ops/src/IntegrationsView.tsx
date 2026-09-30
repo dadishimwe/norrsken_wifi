@@ -441,12 +441,12 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
         <p className="muted">No active rooms yet.</p>
       ) : (
         <div className="table-wrap">
-          <table className="table table-dense room-table">
+          <table className="table room-table">
             <thead>
               <tr>
                 <th>Room</th>
                 <th>Reports</th>
-                <th className="col-actions" aria-label="Actions" />
+                <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>

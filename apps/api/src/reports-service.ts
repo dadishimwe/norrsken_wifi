@@ -28,7 +28,7 @@ import {
   type PatchReportInput,
 } from "@norrsken/shared";
 import type { Env } from "./env.js";
-import { evaluateIncidents } from "./incident-engine.js";
+import { ensureReportIncident, evaluateIncidents } from "./incident-engine.js";
 import { postReportAlert } from "./slack-alert.js";
 import { campusWeight, parseCampusIps } from "./campus.js";
 import { mintEditToken, verifyEditToken } from "./edit-token.js";
@@ -247,6 +247,7 @@ export async function createReport(
   await upsertSession(db, actorHash, input.zone_id, input.wifi_context);
   try {
     await evaluateIncidents(db);
+    await ensureReportIncident(db, reportId);
   } catch (err) {
     console.error("incident engine", err);
   }

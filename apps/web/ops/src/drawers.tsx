@@ -125,15 +125,16 @@ export function ReportDrawer({
             <>
               {" "}
               <button className="btn" type="button" onClick={onOpenIncident}>
-                Open incident
+                Assign
               </button>
             </>
           ) : null}
         </p>
       ) : (
         <p className="muted">
-          This report is not on an open incident, so nobody is assigned. An incident opens when three
-          people report within 10 minutes. Click that incident to choose who is working on it.
+          {report.incident_id
+            ? "This incident is already closed."
+            : "This report is its own incident. It shows under Open incidents while it still needs someone."}
         </p>
       )}
     </Drawer>

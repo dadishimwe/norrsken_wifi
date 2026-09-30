@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import { computeActorHash } from "@norrsken/db";
 import { APPS, SYMPTOMS, UNIVERSAL_ZONE_ID, type App as AppId, type Symptom } from "@norrsken/shared";
 import type { Env } from "../env.js";
+import { closeEmptyReportIncidents } from "../incident-engine.js";
 import { HttpError, createReport } from "../reports-service.js";
 import {
   parseDraft,
@@ -334,17 +335,29 @@ async function submitDraft(
   if (attachIncidentId) {
     await db.query(
       `
-      update report
+      update report r
       set incident_id = $1
-      where id = $2
-        and incident_id is null
+      where r.id = $2
         and exists (
           select 1 from incident
           where id = $1 and status in ('open','investigating')
         )
+        and (
+          r.incident_id is null
+          or r.incident_id = $1
+          or exists (
+            select 1 from incident i
+            where i.id = r.incident_id
+              and i.scope = 'report'
+              and i.assigned_to is null
+              and i.acked_at is null
+              and not exists (select 1 from incident_comment c where c.incident_id = i.id)
+          )
+        )
       `,
       [attachIncidentId, saved.report_id],
     );
+    await closeEmptyReportIncidents(db);
   }
   return saved;
 }

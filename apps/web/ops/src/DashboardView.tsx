@@ -250,7 +250,7 @@ export function DashboardView({ canEdit = false }: Props) {
         <div className="kpi">
           <div className="label">Open incidents</div>
           <div className="value">{fmtNum(kpi?.open_incidents)}</div>
-          <div className="hint">Related reports grouped as one outage</div>
+          <div className="hint">Each report stays open until someone closes it</div>
         </div>
         <div className="kpi">
           <div className="label">MTTA (30d)</div>
@@ -268,12 +268,11 @@ export function DashboardView({ canEdit = false }: Props) {
         <section className="panel">
           <h2>Open incidents</h2>
           <p className="muted" style={{ marginBottom: "0.75rem" }}>
-            Opens when three people report within 10 minutes. Acknowledge and resolve record the time. Assignment records who is working on it.
+            Every report is an incident. Assign someone, then acknowledge and resolve it. When three people report the same place within 10 minutes, those reports stay on one incident.
           </p>
           {data.incidents.length === 0 ? (
             <p className="empty">
-              No open incidents yet. One opens when three people report within 10 minutes. Click it to
-              assign someone and add notes.
+              No open incidents. Each new report shows up here so you can assign it.
             </p>
           ) : (
             <div className="table-wrap">

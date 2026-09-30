@@ -935,6 +935,8 @@ html[data-theme="dark"] .login-card {
 
 .rooms-panel {
   margin-top: 1rem;
+  width: max-content;
+  max-width: 100%;
 }
 
 .room-add {
@@ -969,6 +971,11 @@ html[data-theme="dark"] .login-card {
   border-radius: 8px;
 }
 
+.room-table {
+  width: auto;
+  min-width: 0;
+}
+
 .room-table td {
   vertical-align: middle;
 }
@@ -979,9 +986,9 @@ html[data-theme="dark"] .login-card {
 
 .room-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.4rem;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .room-actions .btn {
