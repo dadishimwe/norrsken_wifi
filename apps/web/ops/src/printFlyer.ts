@@ -291,9 +291,8 @@ export function buildScanFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
     width: 100%;
     max-width: 178mm;
     margin: 0 auto;
-    min-height: 265mm;
-    display: flex;
-    flex-direction: column;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .brand { text-align: center; margin: 0 0 10px; }
   .logo-norrsken {
@@ -310,11 +309,15 @@ export function buildScanFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
   }
   h1 {
     text-align: center;
-    font-size: 54px;
-    line-height: 0.98;
-    margin: 8px 0 10px;
+    font-size: 48px;
+    line-height: 1.05;
+    margin: 6px 0 8px;
     font-weight: 800;
-    letter-spacing: -0.035em;
+    letter-spacing: -0.03em;
+  }
+  h1 span {
+    display: block;
+    white-space: nowrap;
   }
   .sub {
     text-align: center;
@@ -376,17 +379,11 @@ export function buildScanFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
     text-align: left;
   }
   .badge svg { display: block; flex: 0 0 auto; }
-  .spacer { flex: 1; }
-  .footer {
-    border-top: 1px solid #e5e7eb;
-    padding-top: 12px;
-    margin-top: 22px;
-  }
   .disclaimer {
-    font-size: 10px;
-    color: #6b6b6b;
-    line-height: 1.45;
-    margin: 0;
+    font-size: 9px;
+    color: #9a9a9a;
+    line-height: 1.4;
+    margin: 12px 0 0;
     text-align: center;
   }
 </style></head><body>
@@ -395,7 +392,7 @@ export function buildScanFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
     <img class="logo-norrsken" src="${esc(norrsken)}" alt="Norrsken"/>
     <p class="house">House Kigali</p>
   </div>
-  <h1>Internet slow<br>or dropping?</h1>
+  <h1><span>Internet slow</span><span>or dropping?</span></h1>
   <p class="sub">Help us fix it — scan to log an issue in 10 seconds.</p>
   <div class="scan-card">
     <img class="qr" src="${qr.png_data_url}" alt="QR code"/>
@@ -406,11 +403,7 @@ export function buildScanFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
     <div class="badge">${clockIcon}<span>Takes 10 seconds</span></div>
     <div class="badge">${lockIcon}<span>No login needed</span></div>
   </div>
-  <div class="spacer"></div>
-  <div class="footer">
-    <p class="disclaimer">Reports go to the Norrsken House team.
-    Your details are only used to follow up on this report.</p>
-  </div>
+  <p class="disclaimer">Reports go to the Norrsken House team. Your details are only used to follow up on this report.</p>
 </div>
 </body></html>`;
 }
