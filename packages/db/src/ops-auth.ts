@@ -156,6 +156,22 @@ export async function setOpsUserUsername(
   return rows[0] ?? null;
 }
 
+export async function setOpsUserCompany(
+  db: Pool,
+  id: string,
+  company: OpsCompany,
+): Promise<OpsUser | null> {
+  const { rows } = await db.query<OpsUser>(
+    `
+    update ops_user set company = $2
+    where id = $1
+    returning ${OPS_USER_FIELDS}
+    `,
+    [id, company],
+  );
+  return rows[0] ?? null;
+}
+
 export async function createOpsSession(
   db: Pool,
   userId: string,

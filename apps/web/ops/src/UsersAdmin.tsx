@@ -49,6 +49,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
   const [confirmUsername, setConfirmUsername] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [nextCompany, setNextCompany] = useState<"norrsken" | "zuba" | "dct">("norrsken");
   const [resetError, setResetError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -111,6 +112,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
     setConfirmUsername("");
     setNextPassword("");
     setConfirmPassword("");
+    setNextCompany(u.company ?? "norrsken");
     setResetError(null);
   }
 
@@ -120,6 +122,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
     setConfirmUsername("");
     setNextPassword("");
     setConfirmPassword("");
+    setNextCompany("norrsken");
     setResetError(null);
   }
 
@@ -128,17 +131,18 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
     if (!resetUser) return;
     const usernameNext = nextUsername.trim().toLowerCase();
     const usernameChanged = usernameNext !== resetUser.username;
+    const companyChanged = nextCompany !== (resetUser.company ?? "norrsken");
     const passwordFilled = nextPassword.length > 0 || confirmPassword.length > 0;
     if (!/^[a-z0-9._-]+$/i.test(usernameNext)) {
       setResetError("Username can use letters, numbers, dots, underscores, and hyphens.");
       return;
     }
-    if (usernameNext !== confirmUsername.trim().toLowerCase()) {
+    if (usernameChanged && usernameNext !== confirmUsername.trim().toLowerCase()) {
       setResetError("Usernames do not match.");
       return;
     }
-    if (!usernameChanged && !passwordFilled) {
-      setResetError("Change the username or enter a new password.");
+    if (!usernameChanged && !passwordFilled && !companyChanged) {
+      setResetError("Change the username, company, or enter a new password.");
       return;
     }
     if (passwordFilled) {
@@ -157,6 +161,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
       await opsApi.patchUser(resetUser.id, {
         ...(usernameChanged ? { username: usernameNext } : {}),
         ...(passwordFilled ? { password: nextPassword } : {}),
+        ...(companyChanged ? { company: nextCompany } : {}),
       });
       closeReset();
       setToast(`Account updated for @${usernameNext}`);
@@ -191,8 +196,8 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
           >
             <h3 id="reset-title">Edit account</h3>
             <p>
-              Change the username for @{resetUser.username}, set a new password, or both. Leave the
-              password fields blank to keep the current password.
+              Change the username, company, or password for @{resetUser.username}. Leave the password
+              fields blank to keep the current password. Confirm the username when you change it.
             </p>
             {resetError ? <p className="error">{resetError}</p> : null}
             <div className="field">
@@ -215,7 +220,15 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
                 value={confirmUsername}
                 onChange={(e) => setConfirmUsername(e.target.value)}
                 pattern="[A-Za-z0-9._-]+"
-                required
+              />
+            </div>
+            <div className="field">
+              <CustomSelect
+                label="Company"
+                value={nextCompany}
+                onChange={(v) => setNextCompany(v as "norrsken" | "zuba" | "dct")}
+                options={[...COMPANY_OPTIONS]}
+                disabled={busy}
               />
             </div>
             <div className="field">

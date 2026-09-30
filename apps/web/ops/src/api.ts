@@ -243,7 +243,15 @@ export const opsApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  patchUser: (id: string, body: { active?: boolean; password?: string; username?: string }) =>
+  patchUser: (
+    id: string,
+    body: {
+      active?: boolean;
+      password?: string;
+      username?: string;
+      company?: "norrsken" | "zuba" | "dct";
+    },
+  ) =>
     api<{ user: OpsUser }>(`/api/ops/users/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),

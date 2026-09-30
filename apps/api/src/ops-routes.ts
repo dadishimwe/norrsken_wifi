@@ -17,6 +17,7 @@ import {
   setOpsUserActive,
   setOpsUserPassword,
   setOpsUserUsername,
+  setOpsUserCompany,
   updateZone,
   verifyPassword,
   type OpsUser,
@@ -382,6 +383,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
             .max(64)
             .regex(/^[a-z0-9._-]+$/i, "username: letters, numbers, . _ -")
             .optional(),
+          company: z.enum(COMPANIES).optional(),
         })
         .safeParse(req.body);
       if (!body.success) return reply.code(400).send({ error: "invalid_body" });
@@ -404,6 +406,9 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       if (body.data.password) {
         await setOpsUserPassword(db, id, body.data.password);
         user = user ?? (await listOpsUsers(db)).find((u) => u.id === id) ?? null;
+      }
+      if (body.data.company) {
+        user = await setOpsUserCompany(db, id, body.data.company);
       }
       if (!user) return reply.code(404).send({ error: "not_found" });
       return { user: publicUser(user) };
