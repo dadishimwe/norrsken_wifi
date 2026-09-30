@@ -6,6 +6,8 @@ import {
   DEVICE_OPTIONS,
   SYMPTOM_LABELS,
   SYMPTOMS,
+  USER_TYPE_LABELS,
+  USER_TYPES,
   WHEN_BUCKETS,
   WHEN_LABELS,
   UNIVERSAL_ZONE_ID,
@@ -102,6 +104,53 @@ const CONTACT_OPTION = {
 
 function filled(value: string): { initial_value: string } | Record<string, never> {
   return value ? { initial_value: value } : {};
+}
+
+function userTypeBlocks(draft: SlackDraft): KnownBlock[] {
+  const selected = draft.user_type
+    ? {
+        initial_option: {
+          text: plain(USER_TYPE_LABELS[draft.user_type]),
+          value: draft.user_type,
+        },
+      }
+    : {};
+  return [
+    {
+      type: "input",
+      block_id: "user_type",
+      label: plain("Who are you?"),
+      element: {
+        type: "radio_buttons",
+        action_id: "user_type",
+        options: USER_TYPES.map((id) => ({
+          text: plain(USER_TYPE_LABELS[id]),
+          value: id,
+        })),
+        ...selected,
+      },
+    },
+    {
+      type: "context",
+      elements: [{ type: "mrkdwn", text: "Pick one." }],
+    },
+    ...(draft.user_type === "other"
+      ? [
+          {
+            type: "input" as const,
+            block_id: "user_type_other",
+            label: plain("Please specify"),
+            element: {
+              type: "plain_text_input" as const,
+              action_id: "user_type_other",
+              placeholder: plain("Please specify…"),
+              max_length: 80,
+              ...filled(draft.user_type_other),
+            },
+          },
+        ]
+      : []),
+  ];
 }
 
 /** One screen, same questions as the QR form. */
@@ -218,6 +267,7 @@ export function reportFormView(draft: SlackDraft): View {
           ...filled(draft.clarifiers.other_app ?? ""),
         },
       },
+      ...userTypeBlocks(draft),
       {
         type: "input",
         block_id: "company",
@@ -527,17 +577,23 @@ export function messageView(title: string, body: string): View {
   };
 }
 
-export function metooZoneView(incidentId: string, symptoms: SlackDraft["symptoms"]): View {
+export function metooZoneView(
+  incidentId: string,
+  symptoms: SlackDraft["symptoms"],
+  extras?: Partial<Pick<SlackDraft, "user_type" | "user_type_other" | "company">>,
+): View {
   const draft: SlackDraft = {
     ...emptyDraft(UNIVERSAL_ZONE_ID),
     symptoms,
     incident_id: incidentId,
+    ...extras,
   };
   return modal(
     "wifi_metoo",
     "I'm affected too",
     draft,
     [
+      ...userTypeBlocks(draft),
       {
         type: "input",
         block_id: "company",

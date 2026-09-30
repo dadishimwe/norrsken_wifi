@@ -96,6 +96,18 @@ export function labelSymptom(id: string): string {
   return SYMPTOM_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
+export const USER_TYPE_LABELS: Record<string, string> = {
+  member: "Member",
+  visitor: "Visitor",
+  event: "Event Attendee",
+  other: "Other",
+};
+
+export function labelUserType(id: string | null | undefined): string {
+  if (!id) return "—";
+  return USER_TYPE_LABELS[id] ?? id.replaceAll("_", " ");
+}
+
 export function labelWifi(id: string | null | undefined): string {
   if (!id) return "—";
   return WIFI_LABELS[id] ?? id.replaceAll("_", " ");

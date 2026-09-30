@@ -3,12 +3,14 @@ import {
   APPS,
   DEVICE_OPTIONS,
   SYMPTOMS,
+  USER_TYPES,
   WHEN_BUCKETS,
   pickClarifiers,
   type App,
   type Clarifiers,
   type DeviceOption,
   type Symptom,
+  type UserType,
   type WhenBucket,
 } from "@norrsken/shared";
 
@@ -24,6 +26,8 @@ export type SlackDraft = {
   device_class: DeviceOption;
   wifi_context: string;
   company: string;
+  user_type: UserType | "";
+  user_type_other: string;
   contact_ok: boolean;
   contact_name: string;
   contact_phone: string;
@@ -45,6 +49,8 @@ export function emptyDraft(zoneId = ""): SlackDraft {
     device_class: "unknown",
     wifi_context: "unknown",
     company: "",
+    user_type: "",
+    user_type_other: "",
     contact_ok: false,
     contact_name: "",
     contact_phone: "",
@@ -83,6 +89,10 @@ export function parseDraft(raw: string | undefined | null): SlackDraft {
       device_class: device,
       wifi_context: typeof v.wifi_context === "string" ? v.wifi_context : "unknown",
       company: typeof v.company === "string" ? v.company.slice(0, 120) : "",
+      user_type: (USER_TYPES as readonly string[]).includes(v.user_type ?? "")
+        ? (v.user_type as UserType)
+        : "",
+      user_type_other: typeof v.user_type_other === "string" ? v.user_type_other.slice(0, 80) : "",
       contact_ok: v.contact_ok === true,
       contact_name: typeof v.contact_name === "string" ? v.contact_name.slice(0, 80) : "",
       contact_phone: typeof v.contact_phone === "string" ? v.contact_phone.slice(0, 40) : "",

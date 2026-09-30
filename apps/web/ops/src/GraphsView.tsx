@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { downloadCsv, opsApi, type AnalyticsPayload } from "./api";
 import { HorizontalBars, VerticalBars, formatDayTick } from "./Charts";
 import { CustomSelect } from "./CustomSelect";
-import { labelApp, labelSymptom } from "./labels";
+import { labelApp, labelSymptom, labelUserType } from "./labels";
 import { AppLabel, ChannelLabel } from "./marks";
 
 type Days = 7 | 14 | 30 | 90;
@@ -121,6 +121,15 @@ export function GraphsView() {
       label: c.company,
       value: n,
       title: `${c.company}: ${n} report${n === 1 ? "" : "s"}`,
+    };
+  });
+  const whoPoints = (data.user_types ?? []).map((row) => {
+    const n = Number(row.n) || 0;
+    const name = labelUserType(row.user_type);
+    return {
+      label: name,
+      value: n,
+      title: `${name}: ${n} report${n === 1 ? "" : "s"}`,
     };
   });
   const contact = data.contact;
@@ -254,6 +263,14 @@ export function GraphsView() {
             <span className="chart-kind">Horizontal · ranking</span>
           </div>
           <HorizontalBars items={symptomPoints} maxItems={10} />
+        </section>
+
+        <section className="panel chart-panel">
+          <div className="chart-head">
+            <h2>Who reported</h2>
+            <span className="chart-kind">What they said they were</span>
+          </div>
+          <HorizontalBars items={whoPoints} maxItems={4} />
         </section>
 
         <section className="panel chart-panel">

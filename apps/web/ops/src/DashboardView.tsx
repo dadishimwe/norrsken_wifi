@@ -8,6 +8,7 @@ import {
   labelBrowser,
   labelDeviceType,
   labelSymptom,
+  labelUserType,
   labelWhen,
 } from "./labels";
 import { AppLabel, ChannelLabel } from "./marks";
@@ -364,6 +365,7 @@ export function DashboardView({ canEdit = false }: Props) {
                       Clarifiers
                     </th>
                     <th>Company</th>
+                    <th>Who</th>
                     <th>Contact</th>
                     <th>Device</th>
                     <th>Browser</th>
@@ -396,6 +398,13 @@ export function DashboardView({ canEdit = false }: Props) {
                       <td>{labelWhen(r.when_bucket, r.occurred_at)}</td>
                       <td className="cell-clamp">{clarifierText(r.clarifiers)}</td>
                       <td>{r.company?.trim() || "—"}</td>
+                      <td>
+                        {r.user_type
+                          ? r.user_type === "other" && r.user_type_other?.trim()
+                            ? `${labelUserType(r.user_type)} · ${r.user_type_other.trim()}`
+                            : labelUserType(r.user_type)
+                          : "—"}
+                      </td>
                       <td>
                         {r.contact_ok ? (
                           <div className="contact-cell">

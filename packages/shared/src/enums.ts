@@ -27,6 +27,16 @@ export type App = (typeof APPS)[number];
 export const WHEN_BUCKETS = ["now", "recent", "earlier"] as const;
 export type WhenBucket = (typeof WHEN_BUCKETS)[number];
 
+export const USER_TYPES = ["member", "visitor", "event", "other"] as const;
+export type UserType = (typeof USER_TYPES)[number];
+
+export const USER_TYPE_LABELS: Record<UserType, string> = {
+  member: "Member",
+  visitor: "Visitor",
+  event: "Event Attendee",
+  other: "Other",
+};
+
 export const CHANNELS = ["qr", "slack", "slack_metoo"] as const;
 export type Channel = (typeof CHANNELS)[number];
 

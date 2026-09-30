@@ -32,6 +32,7 @@ describe.skipIf(!hasDb)("reports ingest (integration)", () => {
         channel: "qr",
         symptoms: ["slow"],
         company: "Acme",
+        user_type: "member",
         apps: [],
         when_bucket: "now",
         wifi_context: "unknown",
@@ -78,6 +79,7 @@ describe.skipIf(!hasDb)("reports ingest (integration)", () => {
           zone_source: "qr",
           symptoms: ["wifi_drops"],
           company: "Acme",
+          user_type: "member",
           fill_ms: 100,
           session_token: randomBytes(24).toString("hex"),
         },
@@ -93,6 +95,7 @@ describe.skipIf(!hasDb)("reports ingest (integration)", () => {
       zone_source: "qr" as const,
       symptoms: ["cant_connect" as const],
       company: "Acme",
+      user_type: "member" as const,
       fill_ms: 2000,
       session_token: session,
     };

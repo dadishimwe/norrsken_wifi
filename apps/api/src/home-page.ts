@@ -10,16 +10,21 @@ export function renderHomePage(): string {
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
-    min-height: 100%;
-    background: #f6f5f1;
+    height: 100%;
     color: #111;
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   }
   body {
+    min-height: 100%;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 24px 16px;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(215, 242, 90, 0.45), transparent 55%),
+      radial-gradient(900px 500px at 90% 0%, rgba(17, 17, 17, 0.03), transparent 50%),
+      #f6f5f1;
   }
   main {
     width: 100%;
@@ -67,7 +72,7 @@ export function renderHomePage(): string {
   <p class="house">House Kigali</p>
   <h1>Internet slow<br>or dropping?</h1>
   <p class="lead">Scan the poster in the house. It takes about 10 seconds. No app and no login.</p>
-  <p class="staff"><a href="/ops/">House team</a></p>
+  <p class="staff"><a href="https://www.norrsken.org/">Norrsken</a></p>
 </main>
 </body>
 </html>`;

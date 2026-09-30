@@ -717,6 +717,8 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         { title: "when_bucket", field: "when_bucket" },
         { title: "occurred_at", field: "occurred_at" },
         { title: "company", field: "company" },
+        { title: "user_type", field: "user_type" },
+        { title: "user_type_other", field: "user_type_other" },
         { title: "contact_ok", field: "contact_ok" },
         { title: "contact_name", field: "contact_name" },
         { title: "contact_phone", field: "contact_phone" },
@@ -780,7 +782,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       }
       const where = filters.join(" and ");
 
-      const [perDay, apps, symptoms, wifi, zones, companies, contact, kpi, zoneList] = await Promise.all([
+      const [perDay, apps, symptoms, wifi, zones, companies, userTypes, contact, kpi, zoneList] = await Promise.all([
         db.query(
           `
           select d::date as day, coalesce(c.n, 0)::int as reports
@@ -859,6 +861,17 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         ),
         db.query(
           `
+          select r.user_type, count(*)::int as n
+          from report r
+          where ${where}
+            and r.user_type is not null
+          group by r.user_type
+          order by n desc
+          `,
+          params,
+        ),
+        db.query(
+          `
           select
             count(*) filter (where r.contact_ok)::int as with_contact,
             count(*)::int as total
@@ -882,6 +895,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         wifi: wifi.rows,
         top_zones: zones.rows,
         companies: companies.rows,
+        user_types: userTypes.rows,
         contact: contact.rows[0] ?? { with_contact: 0, total: 0 },
         note: "Charts respect the filters above.",
       };

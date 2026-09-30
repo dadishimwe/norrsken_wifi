@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { APPS, CHANNELS, DEVICE_CLASSES, SYMPTOMS, WHEN_BUCKETS, ZONE_SOURCES } from "./enums.js";
+import { APPS, CHANNELS, DEVICE_CLASSES, SYMPTOMS, USER_TYPES, WHEN_BUCKETS, ZONE_SOURCES } from "./enums.js";
 
 export const symptomSchema = z.enum(SYMPTOMS);
 export const appSchema = z.enum(APPS);
 export const whenBucketSchema = z.enum(WHEN_BUCKETS);
+export const userTypeSchema = z.enum(USER_TYPES);
 export const channelSchema = z.enum(CHANNELS);
 export const zoneSourceSchema = z.enum(ZONE_SOURCES);
 export const deviceClassSchema = z.enum(DEVICE_CLASSES);
@@ -44,6 +45,9 @@ export const createReportSchema = z
     device_class: deviceClassSchema.default("unknown"),
     /** Company, or the place they are working from. */
     company: z.string().trim().min(1).max(120),
+    /** Who they are. Required, with no default, so guests are not recorded as members. */
+    user_type: userTypeSchema,
+    user_type_other: z.string().trim().max(80).optional(),
     contact_ok: z.boolean().default(false),
     contact_name: z.string().trim().max(80).optional(),
     contact_phone: z.string().trim().max(40).optional(),
@@ -58,7 +62,16 @@ export const createReportSchema = z
     website: z.string().max(0).optional(),
     session_token: z.string().min(16).max(128),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.user_type === "other" && !value.user_type_other?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["user_type_other"],
+        message: "Please say who you are.",
+      });
+    }
+  });
 
 export type CreateReportInput = z.infer<typeof createReportSchema>;
 

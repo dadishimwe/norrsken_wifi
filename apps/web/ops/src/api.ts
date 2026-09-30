@@ -63,6 +63,8 @@ export type ReportRow = {
   device_class?: string | null;
   browser?: string | null;
   company?: string | null;
+  user_type?: string | null;
+  user_type_other?: string | null;
   contact_ok?: boolean;
   contact_name?: string | null;
   contact_phone?: string | null;
@@ -125,6 +127,7 @@ export type AnalyticsPayload = {
   wifi: Array<{ wifi_context: string; n: number }>;
   top_zones: Array<{ zone_id: string; label: string; report_count: number }>;
   companies?: Array<{ company: string; n: number }>;
+  user_types?: Array<{ user_type: string; n: number }>;
   contact?: { with_contact: number; total: number };
   note?: string;
 };

@@ -192,9 +192,9 @@ export async function createReport(
         id, created_at, channel, zone_id, zone_source, symptoms, apps, when_bucket,
         occurred_at, wifi_context, clarifiers, device_class, fill_ms, actor_hash,
         weight, prev_hash, row_hash, browser, company, contact_ok, contact_name,
-        contact_phone, contact_email
+        contact_phone, contact_email, user_type, user_type_other
       ) values (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
       )
       returning id
       `,
@@ -222,6 +222,8 @@ export async function createReport(
         contactName,
         contactPhone,
         contactEmail,
+        input.user_type,
+        input.user_type === "other" ? blankToNull(input.user_type_other) : null,
       ],
     );
     if (!rows[0]) throw new Error("insert failed");

@@ -23,6 +23,18 @@ const boot = (window as unknown as QrWindow).__BOOTSTRAP__;
 const root = document.getElementById("app")!;
 const HOUSE_QR = "house";
 
+const WHO = [
+  { id: "member", label: "Member" },
+  { id: "visitor", label: "Visitor" },
+  { id: "event", label: "Event Attendee" },
+  { id: "other", label: "Other" },
+] as const;
+type WhoId = (typeof WHO)[number]["id"];
+
+function isWho(value: string): value is WhoId {
+  return WHO.some((item) => item.id === value);
+}
+
 function escapeHtml(s: string): string {
   return s
     .replaceAll("&", "&amp;")
@@ -184,6 +196,8 @@ async function run(b: Bootstrap) {
   let otherApp = "";
   let note = "";
   let company = "";
+  let who: WhoId | "" = "";
+  let whoOther = "";
   let contactOk = false;
   let contactName = "";
   let contactPhone = "";
@@ -218,6 +232,8 @@ async function run(b: Bootstrap) {
           otherApp,
           note,
           company,
+          who,
+          whoOther,
           contactOk,
           contactName,
           contactPhone,
@@ -253,6 +269,8 @@ async function run(b: Bootstrap) {
         otherApp?: string;
         note?: string;
         company?: string;
+        who?: string;
+        whoOther?: string;
         contactOk?: boolean;
         contactName?: string;
         contactPhone?: string;
@@ -275,6 +293,8 @@ async function run(b: Bootstrap) {
       if (typeof d.otherApp === "string") otherApp = d.otherApp;
       if (typeof d.note === "string") note = d.note;
       if (typeof d.company === "string") company = d.company;
+      if (typeof d.who === "string" && isWho(d.who)) who = d.who;
+      if (typeof d.whoOther === "string") whoOther = d.whoOther.slice(0, 80);
       if (typeof d.contactOk === "boolean") contactOk = d.contactOk;
       if (typeof d.contactName === "string") contactName = d.contactName;
       if (typeof d.contactPhone === "string") contactPhone = d.contactPhone;
@@ -345,6 +365,8 @@ async function run(b: Bootstrap) {
     if (noteEl) note = noteEl.value.trim().slice(0, 400);
     const companyEl = root.querySelector<HTMLInputElement>("#company");
     if (companyEl) company = companyEl.value.trim().slice(0, 120);
+    const whoEl = root.querySelector<HTMLInputElement>("#who-other");
+    if (whoEl) whoOther = whoEl.value.trim().slice(0, 80);
     const nameEl = root.querySelector<HTMLInputElement>("#contact-name");
     if (nameEl) contactName = nameEl.value.trim().slice(0, 80);
     const phoneEl = root.querySelector<HTMLInputElement>("#contact-phone");
@@ -441,6 +463,23 @@ async function run(b: Bootstrap) {
           <input id="other-app" class="text-input" type="text" maxlength="80"
             placeholder="e.g. Notion, Dropbox…"
             value="${escapeHtml(otherApp)}"
+            autocomplete="off" />
+        </div>
+      </div>
+      <div class="field-block">
+        <h2 class="field-title">Who are you?</h2>
+        <p class="hint">Tap one</p>
+        <div class="chips chips-pills">
+          ${WHO.map(
+            (item) =>
+              `<button type="button" class="chip${who === item.id ? " on" : ""}" data-who="${item.id}" aria-pressed="${who === item.id ? "true" : "false"}">${escapeHtml(item.label)}</button>`,
+          ).join("")}
+        </div>
+        <div class="other-app" ${who === "other" ? "" : "hidden"}>
+          <label for="who-other">Please specify</label>
+          <input id="who-other" class="text-input" type="text" maxlength="80"
+            placeholder="Please specify…"
+            value="${escapeHtml(whoOther)}"
             autocomplete="off" />
         </div>
       </div>
@@ -649,6 +688,23 @@ async function run(b: Bootstrap) {
       otherApp = (e.target as HTMLInputElement).value.trim().slice(0, 80);
       saveDraft();
     });
+    root.querySelectorAll<HTMLButtonElement>("[data-who]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.who ?? "";
+        if (!isWho(id)) return;
+        syncTextInputs();
+        who = id;
+        if (who !== "other") whoOther = "";
+        setError("");
+        saveDraft();
+        render();
+        if (who === "other") root.querySelector<HTMLInputElement>("#who-other")?.focus();
+      });
+    });
+    root.querySelector<HTMLInputElement>("#who-other")?.addEventListener("input", (e) => {
+      whoOther = (e.target as HTMLInputElement).value.trim().slice(0, 80);
+      saveDraft();
+    });
     root.querySelector<HTMLTextAreaElement>("#note")?.addEventListener("input", (e) => {
       note = (e.target as HTMLTextAreaElement).value.slice(0, 400);
       saveDraft();
@@ -810,6 +866,14 @@ async function run(b: Bootstrap) {
     if (busy) return;
     syncTextInputs();
     setError("");
+    if (!who) {
+      setError("Tell us who you are.");
+      return;
+    }
+    if (who === "other" && !whoOther.trim()) {
+      setError("Please say who you are.");
+      return;
+    }
     if (!company.trim()) {
       setError("Tell us the company or place you're working from.");
       return;
@@ -853,6 +917,8 @@ async function run(b: Bootstrap) {
           zone_source: zoneSource,
           channel: "qr",
           company,
+          user_type: who,
+          ...(who === "other" ? { user_type_other: whoOther } : {}),
           contact_ok: contactOk,
           ...(contactOk && contactName ? { contact_name: contactName } : {}),
           ...(contactOk && contactPhone ? { contact_phone: contactPhone } : {}),
