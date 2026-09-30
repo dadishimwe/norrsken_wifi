@@ -134,7 +134,7 @@ export function ReportDrawer({
         <p className="muted">
           {report.incident_id
             ? "This incident is already closed."
-            : "This report is its own incident. It shows under Open incidents while it still needs someone."}
+            : "This report is the incident. It shows under Open incidents while it still needs someone."}
         </p>
       )}
     </Drawer>
@@ -215,7 +215,8 @@ export function IncidentDrawer({
   return (
     <Drawer title="Incident" onClose={onClose}>
       <p className="muted">
-        {places || "House"} · {incident.status === "investigating" ? "Investigating" : "Open"}
+        {incident.report_company?.trim() || "Report"}
+        {places ? ` · ${places}` : ""} · {incident.status === "investigating" ? "Investigating" : "Open"}
       </p>
       {incident.assignee_name ? (
         <p>

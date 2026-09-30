@@ -178,34 +178,28 @@ const COMPANIES = ["norrsken", "zuba", "dct"] as const;
 async function incidentThread(
   db: Pool,
   incidentId: string,
-): Promise<{ places: string; channel: string | null; threadTs: string | null }> {
+): Promise<{ label: string; channel: string | null; threadTs: string | null }> {
   const { rows } = await db.query<{
-    zones: string[];
+    company: string | null;
+    room: string | null;
     alert_channel: string | null;
     alert_ts: string | null;
   }>(
     `
-    select i.zones, r.alert_channel, r.alert_ts
+    select r.company, z.label as room, r.alert_channel, r.alert_ts
     from incident i
-    left join lateral (
-      select alert_channel, alert_ts
-      from report
-      where incident_id = i.id and alert_ts is not null
-      order by created_at desc
-      limit 1
-    ) r on true
+    left join report r on r.incident_id = i.id
+    left join zone z on z.id = r.zone_id
     where i.id = $1
+    order by r.created_at desc nulls last
+    limit 1
     `,
     [incidentId],
   );
   const row = rows[0];
-  if (!row) return { places: "the house", channel: null, threadTs: null };
-  const labels = await db.query<{ label: string }>(
-    `select label from zone where id = any($1::text[]) order by sort, label`,
-    [row.zones],
-  );
-  const places = labels.rows.map((z) => z.label).filter(Boolean).join(", ") || "the house";
-  return { places, channel: row.alert_channel, threadTs: row.alert_ts };
+  if (!row) return { label: "Report", channel: null, threadTs: null };
+  const label = [row.company?.trim(), row.room?.trim()].filter(Boolean).join(" · ") || "Report";
+  return { label, channel: row.alert_channel, threadTs: row.alert_ts };
 }
 
 async function notifyIncident(
@@ -216,7 +210,7 @@ async function notifyIncident(
 ): Promise<boolean> {
   const thread = await incidentThread(db, incidentId);
   return postAlertsThread(env, {
-    text: `Incident (${thread.places}): ${text}`,
+    text: `Incident · ${thread.label}: ${text}`,
     channel: thread.channel,
     threadTs: thread.threadTs,
   });
@@ -433,12 +427,22 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
           select v.*, i.root_cause, i.assigned_to,
             u.display_name as assignee_name,
             u.company as assignee_company,
-            (
-              select max(r.created_at) from report r where r.incident_id = v.id
-            ) as last_report_at
+            r.company as report_company,
+            r.zone_id as room_id,
+            coalesce(z.label, r.zone_id) as room_label,
+            r.created_at as last_report_at
           from v_open_incidents v
           join incident i on i.id = v.id
+          join lateral (
+            select company, zone_id, created_at
+            from report
+            where incident_id = i.id
+            order by created_at
+            limit 1
+          ) r on true
+          left join zone z on z.id = r.zone_id
           left join ops_user u on u.id = i.assigned_to
+          where i.scope = 'report'
         `),
         db.query(`
           select id, display_name, company

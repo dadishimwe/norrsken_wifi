@@ -4,7 +4,6 @@ import type { Pool } from "pg";
 import { computeActorHash } from "@norrsken/db";
 import { APPS, SYMPTOMS, UNIVERSAL_ZONE_ID, type App as AppId, type Symptom } from "@norrsken/shared";
 import type { Env } from "../env.js";
-import { closeEmptyReportIncidents } from "../incident-engine.js";
 import { HttpError, createReport } from "../reports-service.js";
 import {
   parseDraft,
@@ -273,7 +272,7 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     draft.contact_ok = false;
     if (draft.symptoms.length === 0) draft.symptoms = ["no_internet"];
     try {
-      const saved = await submitDraft(db, env, draft, body.user.id, "slack_metoo", undefined, draft.incident_id);
+      const saved = await submitDraft(db, env, draft, body.user.id, "slack_metoo");
       await ack({ response_action: "update", view: thanksView(saved.recent_count) });
     } catch (err) {
       await ack({
@@ -306,7 +305,6 @@ async function submitDraft(
   slackUserId: string,
   channel: "slack" | "slack_metoo",
   occurredAt?: string,
-  attachIncidentId?: string,
 ) {
   const saved = await createReport(
     db,
@@ -332,33 +330,6 @@ async function submitDraft(
     },
     undefined,
   );
-  if (attachIncidentId) {
-    await db.query(
-      `
-      update report r
-      set incident_id = $1
-      where r.id = $2
-        and exists (
-          select 1 from incident
-          where id = $1 and status in ('open','investigating')
-        )
-        and (
-          r.incident_id is null
-          or r.incident_id = $1
-          or exists (
-            select 1 from incident i
-            where i.id = r.incident_id
-              and i.scope = 'report'
-              and i.assigned_to is null
-              and i.acked_at is null
-              and not exists (select 1 from incident_comment c where c.incident_id = i.id)
-          )
-        )
-      `,
-      [attachIncidentId, saved.report_id],
-    );
-    await closeEmptyReportIncidents(db);
-  }
   return saved;
 }
 
@@ -373,11 +344,19 @@ async function networkStatus(db: Pool): Promise<string> {
 }
 
 async function openIncidentLabels(db: Pool): Promise<{ id: string; label: string }[]> {
-  const { rows } = await db.query<{ id: string; zones: string[] }>(
-    `select id, zones from incident where status in ('open','investigating') order by opened_at desc limit 3`,
+  const { rows } = await db.query<{ id: string; company: string | null; symptom: string | null }>(
+    `
+    select i.id, r.company, r.symptoms[1] as symptom
+    from incident i
+    join report r on r.incident_id = i.id
+    where i.status in ('open', 'investigating')
+      and i.scope = 'report'
+    order by i.opened_at desc
+    limit 3
+    `,
   );
   return rows.map((r) => ({
     id: r.id,
-    label: r.zones.length ? r.zones.join(", ") : "Campus",
+    label: [r.company?.trim(), r.symptom].filter(Boolean).join(" · ") || "Report",
   }));
 }

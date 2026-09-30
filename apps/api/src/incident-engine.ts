@@ -173,106 +173,13 @@ export function clusterReports(reports: ReportHit[], cfg: EngineConfig, now: Dat
   return clusters;
 }
 
-type OpenIncident = { id: string; scope: string; zones: string[] };
+/**
+ * Detection only. A report is the incident, so this never opens or merges
+ * a place-shaped ticket.
+ */
+export async function evaluateIncidents(_db: Pool, _now = new Date()): Promise<void> {}
 
-/** Group recent reports into open incidents. Safe to run after every new report. */
-export async function evaluateIncidents(db: Pool, now = new Date()): Promise<void> {
-  const cfg = loadEngineConfig();
-  const window = Math.max(cfg.zoneIncident.windowMinutes, cfg.campusWide.windowMinutes);
-  const { rows } = await db.query<{
-    id: string;
-    zone_id: string;
-    actor_hash: Buffer;
-    weight: number;
-    apps: string[];
-    symptoms: string[];
-    created_at: Date;
-  }>(
-    `
-    select id, zone_id, actor_hash, weight, apps, symptoms, created_at
-    from report
-    where created_at > $1::timestamptz
-    `,
-    [new Date(now.getTime() - window * 60_000)],
-  );
-  const hits: ReportHit[] = rows.map((r) => ({
-    id: r.id,
-    zone_id: r.zone_id,
-    actor: r.actor_hash.toString("hex"),
-    weight: Number(r.weight) || 1,
-    apps: r.apps ?? [],
-    symptoms: r.symptoms ?? [],
-    created_at: r.created_at,
-  }));
-  const clusters = clusterReports(hits, cfg, now);
-  if (clusters.length === 0) return;
-
-  const open = await db.query<OpenIncident>(
-    `select id, scope, zones from incident where status in ('open','investigating')`,
-  );
-
-  for (const cluster of clusters) {
-    const match = open.rows.find((inc) => {
-      if (inc.scope !== cluster.scope) return false;
-      if (cluster.scope === "campus") return true;
-      return sameZones(inc.zones, cluster.zones);
-    });
-    const rootCause = cluster.providerSide ? "provider_side_suspected" : null;
-    let incidentId = match?.id;
-    if (!incidentId) {
-      const inserted = await db.query<{ id: string }>(
-        `
-        insert into incident (scope, zones, apps, symptoms, root_cause, severity)
-        values ($1, $2, $3, $4, $5, $6)
-        returning id
-        `,
-        [cluster.scope, cluster.zones, cluster.apps, cluster.symptoms, rootCause, cluster.actors],
-      );
-      incidentId = inserted.rows[0]?.id;
-      if (incidentId) open.rows.push({ id: incidentId, scope: cluster.scope, zones: cluster.zones });
-    } else {
-      await db.query(
-        `
-        update incident
-        set zones = $2, apps = $3, symptoms = $4, severity = $5,
-            root_cause = coalesce($6, root_cause)
-        where id = $1
-        `,
-        [incidentId, cluster.zones, cluster.apps, cluster.symptoms, cluster.actors, rootCause],
-      );
-    }
-    if (!incidentId || cluster.reportIds.length === 0) continue;
-    await claimReports(db, incidentId, cluster.reportIds);
-    if (cluster.scope === "campus") {
-      await db.query(
-        `
-        update report
-        set incident_id = $1
-        where incident_id in (
-          select id from incident
-          where status in ('open','investigating')
-            and scope = 'zone'
-            and zones <@ $2::text[]
-        )
-        `,
-        [incidentId, cluster.zones],
-      );
-      await db.query(
-        `
-        delete from incident
-        where status = 'open'
-          and acked_at is null
-          and scope = 'zone'
-          and zones <@ $1::text[]
-        `,
-        [cluster.zones],
-      );
-    }
-  }
-  await closeEmptyReportIncidents(db);
-}
-
-/** One incident per report, until a grouped outage claims it. */
+/** One incident per report. The room is stored on the report, not as the ticket. */
 export async function ensureReportIncident(db: Pool, reportId: string): Promise<void> {
   await db.query(
     `
@@ -297,47 +204,3 @@ export async function ensureReportIncident(db: Pool, reportId: string): Promise<
   );
 }
 
-/** Move reports onto a grouped incident, leaving ones someone is already working. */
-async function claimReports(db: Pool, incidentId: string, reportIds: string[]): Promise<void> {
-  await db.query(
-    `
-    update report r
-    set incident_id = $1
-    where r.id = any($2::uuid[])
-      and (
-        r.incident_id is null
-        or r.incident_id = $1
-        or exists (
-          select 1 from incident i
-          where i.id = r.incident_id
-            and i.scope = 'report'
-            and i.assigned_to is null
-            and i.acked_at is null
-            and not exists (select 1 from incident_comment c where c.incident_id = i.id)
-        )
-      )
-    `,
-    [incidentId, reportIds],
-  );
-}
-
-export async function closeEmptyReportIncidents(db: Pool): Promise<void> {
-  await db.query(
-    `
-    update incident i
-    set status = 'resolved', resolved_at = now()
-    where i.scope = 'report'
-      and i.status in ('open', 'investigating')
-      and i.acked_at is null
-      and i.assigned_to is null
-      and not exists (select 1 from incident_comment c where c.incident_id = i.id)
-      and not exists (select 1 from report r where r.incident_id = i.id)
-    `,
-  );
-}
-
-function sameZones(a: string[], b: string[]): boolean {
-  const left = [...a].sort().join("\0");
-  const right = [...b].sort().join("\0");
-  return left === right;
-}

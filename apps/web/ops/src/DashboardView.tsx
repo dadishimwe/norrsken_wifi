@@ -250,7 +250,7 @@ export function DashboardView({ canEdit = false }: Props) {
         <div className="kpi">
           <div className="label">Open incidents</div>
           <div className="value">{fmtNum(kpi?.open_incidents)}</div>
-          <div className="hint">Each report stays open until someone closes it</div>
+          <div className="hint">One incident for each report</div>
         </div>
         <div className="kpi">
           <div className="label">MTTA (30d)</div>
@@ -268,7 +268,7 @@ export function DashboardView({ canEdit = false }: Props) {
         <section className="panel">
           <h2>Open incidents</h2>
           <p className="muted" style={{ marginBottom: "0.75rem" }}>
-            Every report is an incident. Assign someone, then acknowledge and resolve it. When three people report the same place within 10 minutes, those reports stay on one incident.
+            Each report is an incident. The room is where it was sent from. Assign someone, then acknowledge and resolve it.
           </p>
           {data.incidents.length === 0 ? (
             <p className="empty">
@@ -281,31 +281,21 @@ export function DashboardView({ canEdit = false }: Props) {
                   <tr>
                     <th>Opened</th>
                     <th>Status</th>
-                    <th>Places</th>
-                    <th>Reports</th>
+                    <th>Company</th>
+                    <th>Room</th>
                     <th>Assignee</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.incidents.map((i) => {
-                    const labels = new Map(data.zones.map((z) => [z.zone_id, z.label]));
-                    const places = i.zones.map((id) => labels.get(id) ?? id).join(", ");
-                    const quiet =
-                      !!i.last_report_at &&
-                      Date.now() - new Date(i.last_report_at).getTime() >= 20 * 60_000;
+                    const room =
+                      i.room_id === "house" ? "House" : i.room_label?.trim() || "—";
                     return (
                       <tr key={i.id} className="row-click" onClick={() => setOpenIncidentId(i.id)}>
                         <td>{timeAgo(i.opened_at)}</td>
-                        <td>
-                          {i.status === "investigating" ? "Investigating" : "Open"}
-                          {i.scope === "campus" ? " · Across the house" : ""}
-                          {i.root_cause === "provider_side_suspected" ? (
-                            <span className="pill">App outage likely</span>
-                          ) : null}
-                          {quiet ? <div className="muted">Quiet for 20 minutes</div> : null}
-                        </td>
-                        <td>{places}</td>
-                        <td>{fmtNum(i.report_count)}</td>
+                        <td>{i.status === "investigating" ? "Investigating" : "Open"}</td>
+                        <td>{i.report_company?.trim() || "—"}</td>
+                        <td>{room}</td>
                         <td>{i.assignee_name || "—"}</td>
                       </tr>
                     );
@@ -468,9 +458,11 @@ export function DashboardView({ canEdit = false }: Props) {
       {openIncident ? (
         <IncidentDrawer
           incident={openIncident}
-          places={openIncident.zones
-            .map((id) => data.zones.find((z) => z.zone_id === id)?.label ?? id)
-            .join(", ")}
+          places={
+            openIncident.room_id === "house"
+              ? "House"
+              : openIncident.room_label?.trim() || "House"
+          }
           assignees={data.assignees ?? []}
           canEdit={canEdit}
           busy={busy}

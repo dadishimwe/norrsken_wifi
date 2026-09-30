@@ -110,6 +110,9 @@ export type DashboardPayload = {
     assigned_to?: string | null;
     assignee_name?: string | null;
     assignee_company?: string | null;
+    report_company?: string | null;
+    room_id?: string | null;
+    room_label?: string | null;
   }>;
   assignees: Array<{ id: string; display_name: string; company: string }>;
 };
