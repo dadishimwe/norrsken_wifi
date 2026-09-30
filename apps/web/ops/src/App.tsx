@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import { opsApi, type OpsUser } from "./api";
 import { LoginPage } from "./LoginPage";
 import { DashboardView } from "./DashboardView";
@@ -20,6 +20,22 @@ function roleLabel(role: string): string {
 }
 
 type Tab = "dashboard" | "graphs" | "integrations" | "users";
+
+class PageBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
+  override state = { message: null as string | null };
+
+  static getDerivedStateFromError(err: unknown) {
+    const message = err instanceof Error ? err.message : "The page failed to draw.";
+    return { message };
+  }
+
+  override render() {
+    if (this.state.message) {
+      return <p className="error">This page failed to draw: {this.state.message}</p>;
+    }
+    return this.props.children;
+  }
+}
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
@@ -117,15 +133,17 @@ export function App() {
       ) : null}
 
       <main className="page">
-        {tab === "users" ? (
-          <UsersAdmin me={user} />
-        ) : tab === "integrations" ? (
-          <IntegrationsView canEdit={staffRole(user.role)} />
-        ) : tab === "graphs" ? (
-          <GraphsView />
-        ) : (
-          <DashboardView canEdit={staffRole(user.role)} meId={user.id} />
-        )}
+        <PageBoundary key={tab}>
+          {tab === "users" ? (
+            <UsersAdmin me={user} />
+          ) : tab === "integrations" ? (
+            <IntegrationsView canEdit={staffRole(user.role)} />
+          ) : tab === "graphs" ? (
+            <GraphsView />
+          ) : (
+            <DashboardView canEdit={staffRole(user.role)} meId={user.id} />
+          )}
+        </PageBoundary>
       </main>
 
     </div>

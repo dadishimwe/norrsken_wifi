@@ -125,6 +125,24 @@ const ASSIGNMENT_FILTERS: { id: AssignmentFilter; label: string }[] = [
   { id: "mine", label: "Assigned to me" },
 ];
 
+function textList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+  if (typeof value !== "string") return [];
+  const trimmed = value.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed
+      .slice(1, -1)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return trimmed ? [trimmed] : [];
+}
+
+function textOf(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function statusName(status: string | null | undefined): string {
   if (status === "investigating") return "Investigating";
   if (status === "resolved") return "Resolved";
@@ -217,7 +235,12 @@ export function DashboardView({ canEdit = false, meId }: Props) {
   if (!data) return <p className="muted">Loading…</p>;
 
   const kpi = data.kpi;
-  const rows = reportsPage?.reports ?? data.reports;
+  const rows = Array.isArray(reportsPage?.reports)
+    ? reportsPage.reports
+    : Array.isArray(data.reports)
+      ? data.reports
+      : [];
+  const assignees = Array.isArray(data.assignees) ? data.assignees : [];
   const openReport = rows.find((r) => r.id === openReportId) ?? null;
 
   return (
@@ -315,7 +338,15 @@ export function DashboardView({ canEdit = false, meId }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {rows.map((r) => {
+                    const symptoms = textList(r.symptoms);
+                    const apps = textList(r.apps);
+                    const company = textOf(r.company);
+                    const contactName = textOf(r.contact_name);
+                    const contactPhone = textOf(r.contact_phone);
+                    const contactEmail = textOf(r.contact_email);
+                    const otherWho = textOf(r.user_type_other);
+                    return (
                     <tr
                       key={r.id}
                       className={`row-click${busy && pending?.id === r.id ? " row-busy" : ""}`}
@@ -326,15 +357,15 @@ export function DashboardView({ canEdit = false, meId }: Props) {
                         <ChannelLabel channel={r.channel} />
                       </td>
                       <td>
-                        {r.symptoms.map((s) => (
+                        {symptoms.map((s) => (
                           <span className="pill" key={s}>
                             {labelSymptom(s)}
                           </span>
                         ))}
                       </td>
                       <td>
-                        {r.apps.length
-                          ? r.apps.map((a) => (
+                        {apps.length
+                          ? apps.map((a) => (
                               <span className="pill" key={a}>
                                 <AppLabel id={a} label={labelAppEntry(a, r.clarifiers)} />
                               </span>
@@ -343,28 +374,74 @@ export function DashboardView({ canEdit = false, meId }: Props) {
                       </td>
                       <td>{labelWhen(r.when_bucket, r.occurred_at)}</td>
                       <td>{r.zone_id === "house" ? "House" : r.zone_label || "—"}</td>
-                      <td>{r.company?.trim() || "—"}</td>
+                      <td>{company || "—"}</td>
                       <td>
                         {r.user_type
-                          ? r.user_type === "other" && r.user_type_other?.trim()
-                            ? `${labelUserType(r.user_type)} · ${r.user_type_other.trim()}`
+                          ? r.user_type === "other" && otherWho
+                            ? `${labelUserType(r.user_type)} · ${otherWho}`
                             : labelUserType(r.user_type)
                           : "—"}
                       </td>
                       <td>
                         {r.contact_ok ? (
                           <div className="contact-cell">
-                            <div>{r.contact_name?.trim() || "Name not given"}</div>
-                            {r.contact_phone?.trim() || r.contact_email?.trim() ? (
+                            <div>{contactName || "Name not given"}</div>
+                            {contactPhone || contactEmail ? (
                               <div className="muted contact-meta">
-                                {[r.contact_phone?.trim(), r.contact_email?.trim()]
-                                  .filter(Boolean)
-                                  .join(" · ")}
+                                {[contactPhone, contactEmail].filter(Boolean).join(" · ")}
                               </div>
                             ) : null}
                           </div>
                         ) : (
                           "—"
+                        )}
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        {canEdit ? (
+                          <label className={statusClass(r.work_status)}>
+                            <span className="sr-only">Status</span>
+                            <select
+                              className="row-select"
+                              aria-label="Status"
+                              value={r.work_status === "investigating" || r.work_status === "resolved" ? r.work_status : "open"}
+                              disabled={busy}
+                              onChange={(e) =>
+                                void saveWork(r.id, {
+                                  work_status: e.target.value as "open" | "investigating" | "resolved",
+                                })
+                              }
+                            >
+                              <option value="open">Open</option>
+                              <option value="investigating">Investigating</option>
+                              <option value="resolved">Resolved</option>
+                            </select>
+                          </label>
+                        ) : (
+                          <span className={statusClass(r.work_status)}>{statusName(r.work_status)}</span>
+                        )}
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        {canEdit ? (
+                          <select
+                            className="row-select"
+                            aria-label="Assignee"
+                            value={r.assigned_to ?? ""}
+                            disabled={busy}
+                            onChange={(e) => void saveWork(r.id, { assigned_to: e.target.value || null })}
+                          >
+                            <option value="">Unassigned</option>
+                            {assignees.map((person) => (
+                              <option key={person.id} value={person.id}>
+                                {person.id === meId ? "You" : person.display_name} · {companyLabel(person.company)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span>
+                            {r.assigned_to === meId
+                              ? "You"
+                              : r.assignee_name || "Unassigned"}
+                          </span>
                         )}
                       </td>
                       {canEdit ? (
@@ -373,7 +450,7 @@ export function DashboardView({ canEdit = false, meId }: Props) {
                             onDelete={() =>
                               setPending({
                                 id: r.id,
-                                zoneLabel: r.company?.trim() || "this report",
+                                zoneLabel: company || "this report",
                                 when: timeAgo(r.created_at),
                               })
                             }
@@ -381,7 +458,8 @@ export function DashboardView({ canEdit = false, meId }: Props) {
                         </td>
                       ) : null}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -411,46 +489,7 @@ export function DashboardView({ canEdit = false, meId }: Props) {
           </>
         )}
       </section>
-      {openReport ? (
-        <ReportDrawer
-          report={openReport}
-          incident={data.incidents.find((i) => i.id === openReport.incident_id) ?? null}
-          onOpenIncident={
-            openReport.incident_id
-              ? () => {
-                  const id = openReport.incident_id;
-                  if (!id) return;
-                  setOpenReportId(null);
-                  setOpenIncidentId(id);
-                }
-              : undefined
-          }
-          onClose={() => setOpenReportId(null)}
-        />
-      ) : null}
-      {openIncident ? (
-        <IncidentDrawer
-          incident={openIncident}
-          places={
-            openIncident.room_id === "house"
-              ? "House"
-              : openIncident.room_label?.trim() || "House"
-          }
-          assignees={data.assignees ?? []}
-          canEdit={canEdit}
-          busy={busy}
-          onClose={() => setOpenIncidentId(null)}
-          onAction={(action, postToSlack) => {
-            if (action === "resolved") {
-              setResolveSlack(postToSlack);
-              setResolveId(openIncident.id);
-              return;
-            }
-            void actOnIncident(openIncident.id, action, postToSlack);
-          }}
-          onAssigned={() => setTick((t) => t + 1)}
-        />
-      ) : null}
+      {openReport ? <ReportDrawer report={openReport} onClose={() => setOpenReportId(null)} /> : null}
     </>
   );
 }

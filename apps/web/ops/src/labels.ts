@@ -92,7 +92,8 @@ const CLARIFIER_VALUES: Record<string, Record<string, string>> = {
   },
 };
 
-export function labelSymptom(id: string): string {
+export function labelSymptom(id: unknown): string {
+  if (typeof id !== "string" || !id) return "—";
   return SYMPTOM_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
@@ -103,8 +104,8 @@ export const USER_TYPE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-export function labelUserType(id: string | null | undefined): string {
-  if (!id) return "—";
+export function labelUserType(id: unknown): string {
+  if (typeof id !== "string" || !id) return "—";
   return USER_TYPE_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
@@ -142,7 +143,8 @@ function clarifierRecord(clarifiers: unknown): Record<string, unknown> | null {
   return null;
 }
 
-export function labelApp(id: string): string {
+export function labelApp(id: unknown): string {
+  if (typeof id !== "string" || !id) return "—";
   return APP_LABELS[id] ?? id.replaceAll("_", " ");
 }
 

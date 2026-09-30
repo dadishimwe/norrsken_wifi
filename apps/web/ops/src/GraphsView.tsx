@@ -72,7 +72,7 @@ export function GraphsView() {
   if (!data) return <p className="error">No analytics data.</p>;
 
   const kpi = data.kpi;
-  const dayPoints = data.reports_per_day.map((d) => {
+  const dayPoints = (data.reports_per_day ?? []).map((d) => {
     const iso = String(d.day).slice(0, 10);
     const pretty = (() => {
       const dt = new Date(`${iso}T12:00:00`);
@@ -100,7 +100,7 @@ export function GraphsView() {
       title: `${pretty}: ${n} report${n === 1 ? "" : "s"}`,
     };
   });
-  const appPoints = data.apps.map((a) => {
+  const appPoints = (data.apps ?? []).map((a) => {
     const n = Number(a.n) || 0;
     const name = labelApp(a.app);
     return {
@@ -110,7 +110,7 @@ export function GraphsView() {
       icon: <AppLabel id={a.app} label={name} />,
     };
   });
-  const symptomPoints = data.symptoms.map((s) => {
+  const symptomPoints = (data.symptoms ?? []).map((s) => {
     const n = Number(s.n) || 0;
     const name = labelSymptom(s.symptom);
     return { label: name, value: n, title: `${name}: ${n}` };
@@ -315,7 +315,7 @@ export function GraphsView() {
         <section className="panel chart-panel">
           <div className="chart-head">
             <h2>Resolved by company</h2>
-            <span className="chart-kind">30 days · assigned incidents</span>
+            <span className="chart-kind">30 days · resolved reports</span>
           </div>
           <HorizontalBars items={resolvedPoints} maxItems={3} />
         </section>
