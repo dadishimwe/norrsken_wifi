@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { opsApi, type IntegrationsPayload, type ZoneQr } from "./api";
 import { SlackIcon } from "./marks";
-import { buildPrintFlyerHtml } from "./printFlyer";
+import { buildPrintFlyerHtml, buildScanFlyerHtml } from "./printFlyer";
 
 type QrState = ZoneQr & {
   zone: { id: string; label: string; floor: string | null; kind: string };
@@ -86,10 +86,9 @@ export function IntegrationsView() {
     }
   }
 
-  function printQr() {
+  function printHtml(html: string) {
     if (!qr) return;
     setPrintError(null);
-    const html = buildPrintFlyerHtml(qr, import.meta.env.BASE_URL);
     const prev = document.getElementById("norrsken-print-frame");
     prev?.remove();
     const iframe = document.createElement("iframe");
@@ -137,6 +136,16 @@ export function IntegrationsView() {
     window.setTimeout(trigger, 2000);
   }
 
+  function printClassic() {
+    if (!qr) return;
+    printHtml(buildPrintFlyerHtml(qr, import.meta.env.BASE_URL));
+  }
+
+  function printScan() {
+    if (!qr) return;
+    printHtml(buildScanFlyerHtml(qr, import.meta.env.BASE_URL));
+  }
+
   const connection = slack?.slack;
   const reports = slack?.reports;
   const connected = connection?.connected === true;
@@ -162,8 +171,11 @@ export function IntegrationsView() {
               <button className="btn btn-primary" type="button" onClick={copyLink}>
                 Copy link
               </button>
-              <button className="btn" type="button" onClick={printQr}>
-                Print flyer
+              <button className="btn btn-primary" type="button" onClick={printScan}>
+                Print scan flyer
+              </button>
+              <button className="btn" type="button" onClick={printClassic}>
+                Print classic flyer
               </button>
               <a className="btn" href={qr.url} target="_blank" rel="noreferrer">
                 Open report page
