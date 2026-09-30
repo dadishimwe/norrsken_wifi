@@ -19,6 +19,14 @@ function esc(s: string): string {
     .replaceAll('"', "&quot;");
 }
 
+function flyerHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url.replace(/^https?:\/\//, "").split("/")[0] || url;
+  }
+}
+
 export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
   const base = assetBase.endsWith("/") ? assetBase : `${assetBase}/`;
   const norrsken = `${base}norrsken-logo-dark.svg`;
@@ -115,6 +123,14 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     display: block;
     background: #fff;
     border-radius: 4px;
+  }
+  .qr-host {
+    margin: 10px 0 0;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.3;
   }
   .steps {
     grid-column: 2;
@@ -228,6 +244,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   <div class="mid">
     <div class="qr-box">
       <img class="qr" src="${qr.png_data_url}" alt="QR code"/>
+      <p class="qr-host">${esc(flyerHost(qr.url))}</p>
     </div>
     <ol class="steps">
       <li><span class="num">1</span><div><p class="step-title">What happened</p><p class="step-hint">Couldn't connect, slow, call choppy, dropped</p></div></li>
@@ -357,6 +374,13 @@ export function buildScanFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
     line-height: 1;
   }
   .callout svg { display: block; flex: 0 0 auto; }
+  .qr-host {
+    margin: 10px 0 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+  }
   .badges {
     display: flex;
     justify-content: center;
@@ -397,6 +421,7 @@ export function buildScanFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
   <div class="scan-card">
     <img class="qr" src="${qr.png_data_url}" alt="QR code"/>
     <div class="callout">${phoneIcon}<span>Scan here to report</span></div>
+    <p class="qr-host">${esc(flyerHost(qr.url))}</p>
   </div>
   <div class="badges">
     <div class="badge">${boltIcon}<span>No app required</span></div>
