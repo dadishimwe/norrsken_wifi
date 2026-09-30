@@ -628,9 +628,17 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 0;
   font-size: 0.95rem;
   line-height: 1.4;
+}
+
+.follow-up {
+  margin-top: var(--s3);
+}
+
+.follow-up .hint[hidden] {
+  display: none;
 }
 
 .check-row input {
@@ -651,9 +659,7 @@ body {
   display: none;
 }
 
-.contact-fields .hint {
-  margin: 0;
-}
+.contact-fields label {
   font-size: 0.85rem;
   font-weight: 600;
   margin-top: 6px;

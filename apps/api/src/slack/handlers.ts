@@ -88,6 +88,32 @@ function checked(values: Values, block: string, action: string): boolean {
   return (values[block]?.[action]?.selected_options ?? []).some((o) => o.value === "yes");
 }
 
+async function slackContactProfile(
+  client: {
+    users: {
+      info: (args: { user: string }) => Promise<{
+        user?: {
+          real_name?: string;
+          profile?: { real_name?: string; display_name?: string; email?: string };
+        };
+      }>;
+    };
+  },
+  userId: string,
+): Promise<{ name: string; email: string }> {
+  try {
+    const res = await client.users.info({ user: userId });
+    const profile = res.user?.profile;
+    const name = (profile?.real_name || res.user?.real_name || profile?.display_name || "")
+      .trim()
+      .slice(0, 80);
+    const email = (profile?.email || "").trim().slice(0, 120);
+    return { name, email };
+  } catch {
+    return { name: "", email: "" };
+  }
+}
+
 function validEmail(value: string): boolean {
   return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -197,6 +223,12 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     await ack();
     if (!("view" in body) || !body.view) return;
     const draft = draftFromValues(body.view);
+    const userId = "user" in body && body.user && "id" in body.user ? body.user.id : "";
+    if (draft.contact_ok && userId && (!draft.contact_name || !draft.contact_email)) {
+      const profile = await slackContactProfile(client, userId);
+      if (!draft.contact_name && profile.name) draft.contact_name = profile.name;
+      if (!draft.contact_email && profile.email) draft.contact_email = profile.email;
+    }
     await client.views.update({
       view_id: body.view.id,
       hash: body.view.hash,

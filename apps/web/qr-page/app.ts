@@ -490,12 +490,14 @@ async function run(b: Bootstrap) {
           placeholder="e.g. Acme, or Classroom 2"
           value="${escapeHtml(company)}"
           autocomplete="organization" />
-        <label class="check-row">
+        <div class="follow-up">
+          <h2 class="field-title">Can we follow up with you?</h2>
+          <p class="hint" ${contactOk ? "hidden" : ""}>The tech team may need to reach out to you for further assistance, to escalate your issue, or to get more details than this form captures.</p>
+          <label class="check-row">
           <input id="contact-ok" type="checkbox" ${contactOk ? "checked" : ""} />
           <span>I'm happy to be contacted about this</span>
         </label>
         <div class="contact-fields" ${contactOk ? "" : "hidden"}>
-          <p class="hint">Leave your phone or email if you want an update. Any one is enough.</p>
           <label for="contact-name">Full name <span class="hint-inline">(optional)</span></label>
           <input id="contact-name" class="text-input" type="text" maxlength="80"
             value="${escapeHtml(contactName)}" autocomplete="name" />
@@ -505,6 +507,7 @@ async function run(b: Bootstrap) {
           <label for="contact-email">Email <span class="hint-inline">(optional)</span></label>
           <input id="contact-email" class="text-input" type="email" maxlength="120"
             value="${escapeHtml(contactEmail)}" autocomplete="email" />
+        </div>
         </div>
       </div>
       <div class="field-block field-block-last">

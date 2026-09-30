@@ -100,6 +100,9 @@ const CONTACT_OPTION = {
   value: "yes",
 };
 
+const FOLLOW_UP_NOTE =
+  "The tech team may need to reach out to you for further assistance, to escalate your issue, or to get more details than this form captures.";
+
 function filled(value: string): { initial_value: string } | Record<string, never> {
   return value ? { initial_value: value } : {};
 }
@@ -240,6 +243,15 @@ export function reportFormView(draft: SlackDraft): View {
         ],
       },
       {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: draft.contact_ok
+            ? "*Can we follow up with you?*"
+            : `*Can we follow up with you?*\n${FOLLOW_UP_NOTE}`,
+        },
+      },
+      {
         type: "actions",
         block_id: "contact_ok",
         elements: [
@@ -253,15 +265,6 @@ export function reportFormView(draft: SlackDraft): View {
       },
       ...(draft.contact_ok
         ? [
-            {
-              type: "context" as const,
-              elements: [
-                {
-                  type: "mrkdwn" as const,
-                  text: "Any one is enough. Leave a phone or email if you want an update.",
-                },
-              ],
-            },
             {
               type: "input" as const,
               optional: true,
