@@ -12,8 +12,6 @@ import { registerReportPageRoutes } from "./report-page.js";
 import { ensureBootstrapAdmin } from "./bootstrap-admin.js";
 import { startSlack } from "./slack/start.js";
 import { renderHomePage } from "./home-page.js";
-import { UNIVERSAL_ZONE_ID } from "@norrsken/shared";
-import { buildZoneQr } from "./qr-service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -78,13 +76,7 @@ export async function buildApp() {
   await registerReportPageRoutes(app, db, env);
 
   app.get("/", async (_req, reply) => {
-    let reportUrl: string | null = null;
-    try {
-      reportUrl = (await buildZoneQr(env, UNIVERSAL_ZONE_ID)).url;
-    } catch {
-      reportUrl = null;
-    }
-    return reply.type("text/html; charset=utf-8").send(renderHomePage({ reportUrl }));
+    return reply.type("text/html; charset=utf-8").send(renderHomePage());
   });
 
   const staticDir = resolveOpsStaticDir(env.OPS_STATIC_DIR);

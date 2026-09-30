@@ -1,17 +1,5 @@
-function esc(s: string): string {
-  return s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-/** Public page for the bare site, so typing the flyer address opens something useful. */
-export function renderHomePage(opts: { reportUrl: string | null }): string {
-  const report = opts.reportUrl
-    ? `<a class="btn" href="${esc(opts.reportUrl)}">Report an issue</a>`
-    : `<p class="fallback">Scan the poster in the house to report an issue.</p>`;
-
+/** Public page for the bare site. It does not publish the signed report link. */
+export function renderHomePage(): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -61,24 +49,10 @@ export function renderHomePage(opts: { reportUrl: string | null }): string {
     letter-spacing: -0.03em;
   }
   .lead {
-    margin: 0 0 22px;
+    margin: 0;
     font-size: 15px;
     line-height: 1.45;
     color: #3a3a3a;
-  }
-  .btn {
-    display: block;
-    background: #111;
-    color: #fff;
-    text-decoration: none;
-    font-weight: 700;
-    border-radius: 12px;
-    padding: 14px 16px;
-    min-height: 48px;
-  }
-  .fallback {
-    margin: 0;
-    font-weight: 600;
   }
   .staff {
     margin: 22px 0 0;
@@ -92,8 +66,7 @@ export function renderHomePage(opts: { reportUrl: string | null }): string {
   <p class="logo">&lt;norrsken&gt;</p>
   <p class="house">House Kigali</p>
   <h1>Internet slow<br>or dropping?</h1>
-  <p class="lead">Tell the house team. It takes about 10 seconds. No app and no login.</p>
-  ${report}
+  <p class="lead">Scan the poster in the house. It takes about 10 seconds. No app and no login.</p>
   <p class="staff"><a href="/ops/">House team</a></p>
 </main>
 </body>
