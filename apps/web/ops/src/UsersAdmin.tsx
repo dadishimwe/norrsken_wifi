@@ -196,8 +196,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
           >
             <h3 id="reset-title">Edit account</h3>
             <p>
-              Change the username, company, or password for @{resetUser.username}. Leave the password
-              fields blank to keep the current password. Confirm the username when you change it.
+              Update @{resetUser.username}. Leave the password blank to keep the current one.
             </p>
             {resetError ? <p className="error">{resetError}</p> : null}
             <div className="field">
@@ -212,16 +211,18 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
                 autoFocus
               />
             </div>
-            <div className="field">
-              <label htmlFor="edit-username-confirm">Confirm username</label>
-              <input
-                id="edit-username-confirm"
-                autoComplete="off"
-                value={confirmUsername}
-                onChange={(e) => setConfirmUsername(e.target.value)}
-                pattern="[A-Za-z0-9._-]+"
-              />
-            </div>
+            {nextUsername.trim().toLowerCase() !== resetUser.username ? (
+              <div className="field">
+                <label htmlFor="edit-username-confirm">Confirm username</label>
+                <input
+                  id="edit-username-confirm"
+                  autoComplete="off"
+                  value={confirmUsername}
+                  onChange={(e) => setConfirmUsername(e.target.value)}
+                  pattern="[A-Za-z0-9._-]+"
+                />
+              </div>
+            ) : null}
             <div className="field">
               <CustomSelect
                 label="Company"
@@ -241,16 +242,18 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
                 onChange={(e) => setNextPassword(e.target.value)}
               />
             </div>
-            <div className="field">
-              <label htmlFor="reset-confirm">Confirm password</label>
-              <input
-                id="reset-confirm"
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
+            {nextPassword.length > 0 ? (
+              <div className="field">
+                <label htmlFor="reset-confirm">Confirm password</label>
+                <input
+                  id="reset-confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+            ) : null}
             <div className="modal-actions">
               <button className="btn" type="button" onClick={() => !busy && closeReset()} disabled={busy}>
                 Cancel
@@ -303,24 +306,6 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
               />
             </div>
             <div className="field">
-              {me.role === "super_admin" ? (
-                <CustomSelect
-                  label="Role"
-                  value={role}
-                  onChange={(v) => setRole(v as "super_admin" | "admin" | "viewer")}
-                  options={[...ROLE_OPTIONS]}
-                  disabled={busy}
-                />
-              ) : (
-                <>
-                  <label>Role</label>
-                  <p className="muted" style={{ margin: "0.45rem 0 0" }}>
-                    Viewer
-                  </p>
-                </>
-              )}
-            </div>
-            <div className="field">
               <CustomSelect
                 label="Company"
                 value={company}
@@ -330,6 +315,23 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
               />
             </div>
           </div>
+          {me.role === "super_admin" ? (
+            <div className="form-row form-row-single">
+              <div className="field">
+                <CustomSelect
+                  label="Role"
+                  value={role}
+                  onChange={(v) => setRole(v as "super_admin" | "admin" | "viewer")}
+                  options={[...ROLE_OPTIONS]}
+                  disabled={busy}
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Role: Viewer
+            </p>
+          )}
           <button className="btn btn-primary" type="submit" disabled={busy}>
             {busy ? "Creating…" : "Create user"}
           </button>

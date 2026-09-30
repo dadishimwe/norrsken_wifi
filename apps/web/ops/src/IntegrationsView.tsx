@@ -437,11 +437,11 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
       ) : null}
       {rooms === null ? (
         <p className="muted">Loading rooms…</p>
-      ) : rooms.length === 0 ? (
-        <p className="muted">No rooms yet.</p>
+      ) : rooms.filter((zone) => zone.active).length === 0 ? (
+        <p className="muted">No active rooms yet.</p>
       ) : (
         <div className="table-wrap">
-          <table className="table table-dense">
+          <table className="table table-dense room-table">
             <thead>
               <tr>
                 <th>Room</th>
@@ -450,53 +450,52 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {rooms.map((zone) => (
+              {rooms
+                .filter((zone) => zone.active)
+                .map((zone) => (
                 <tr key={zone.id}>
                   <td>
-                    {zone.label}
-                    {zone.floor ? <span className="muted"> · {zone.floor}</span> : null}
-                    {zone.active ? null : <span className="muted"> · off</span>}
+                    <div className="room-name">{zone.label}</div>
+                    {zone.floor ? <div className="muted">{zone.floor}</div> : null}
                   </td>
                   <td>{zone.report_count ?? 0}</td>
-                  <td className="room-actions">
-                    {zone.active ? (
-                      <>
-                        <button
-                          className="btn"
-                          type="button"
-                          disabled={roomBusy}
-                          onClick={() =>
-                            opsApi
-                              .zoneQr(zone.id)
-                              .then((roomQr) => copyText(roomQr.url))
-                              .catch((err) => setPrintError(zoneError(err)))
-                          }
-                        >
-                          Copy link
-                        </button>
-                        <button
-                          className="btn btn-primary"
-                          type="button"
-                          disabled={roomBusy}
-                          onClick={() => printRoom(zone, "scan")}
-                        >
-                          Print scan flyer
-                        </button>
-                        <button
-                          className="btn"
-                          type="button"
-                          disabled={roomBusy}
-                          onClick={() => printRoom(zone, "classic")}
-                        >
-                          Print classic flyer
-                        </button>
-                      </>
-                    ) : null}
-                    {canEdit && (zone.report_count ?? 0) === 0 ? (
-                      <button className="btn" type="button" onClick={() => setPendingDelete(zone)}>
-                        Remove
+                  <td>
+                    <div className="room-actions">
+                      <button
+                        className="btn"
+                        type="button"
+                        disabled={roomBusy}
+                        onClick={() =>
+                          opsApi
+                            .zoneQr(zone.id)
+                            .then((roomQr) => copyText(roomQr.url))
+                            .catch((err) => setPrintError(zoneError(err)))
+                        }
+                      >
+                        Copy link
                       </button>
-                    ) : null}
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        disabled={roomBusy}
+                        onClick={() => printRoom(zone, "scan")}
+                      >
+                        Print scan flyer
+                      </button>
+                      <button
+                        className="btn"
+                        type="button"
+                        disabled={roomBusy}
+                        onClick={() => printRoom(zone, "classic")}
+                      >
+                        Print classic flyer
+                      </button>
+                      {canEdit && (zone.report_count ?? 0) === 0 ? (
+                        <button className="btn" type="button" onClick={() => setPendingDelete(zone)}>
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -504,6 +503,15 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
           </table>
         </div>
       )}
+      {rooms?.some((zone) => !zone.active) ? (
+        <p className="muted room-off">
+          Turned off:{" "}
+          {rooms
+            .filter((zone) => !zone.active)
+            .map((zone) => zone.label)
+            .join(", ")}
+        </p>
+      ) : null}
     </section>
     </>
   );

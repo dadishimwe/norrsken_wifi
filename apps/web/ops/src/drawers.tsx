@@ -59,10 +59,23 @@ function Drawer({
   );
 }
 
-export function ReportDrawer({ report, onClose }: { report: ReportRow; onClose: () => void }) {
+export function ReportDrawer({
+  report,
+  incident,
+  onOpenIncident,
+  onClose,
+}: {
+  report: ReportRow;
+  incident?: Incident | null;
+  onOpenIncident?: () => void;
+  onClose: () => void;
+}) {
   const room = report.zone_id === "house" ? "House" : report.zone_label;
   const when = new Date(report.created_at).toLocaleString();
   const clarifiers = formatClarifiersDisplay(report.clarifiers);
+  const phone = report.contact_phone?.trim();
+  const email = report.contact_email?.trim();
+  const name = report.contact_name?.trim();
   return (
     <Drawer title="Report" onClose={onClose}>
       <dl className="detail-list">
@@ -79,6 +92,20 @@ export function ReportDrawer({ report, onClose }: { report: ReportRow; onClose: 
           <dd>{report.company?.trim() || "—"}</dd>
         </div>
         <div>
+          <dt>Contact</dt>
+          <dd>
+            {report.contact_ok ? (
+              <>
+                <div>{name || "Name not given"}</div>
+                <div>{phone || "No phone"}</div>
+                <div>{email || "No email"}</div>
+              </>
+            ) : (
+              "Did not agree to be contacted"
+            )}
+          </dd>
+        </div>
+        <div>
           <dt>Clarifiers</dt>
           <dd>{clarifiers || "—"}</dd>
         </div>
@@ -91,6 +118,24 @@ export function ReportDrawer({ report, onClose }: { report: ReportRow; onClose: 
           <dd>{labelBrowser(report.browser)}</dd>
         </div>
       </dl>
+      {incident ? (
+        <p>
+          Assigned to {incident.assignee_name || "no one yet"}.
+          {onOpenIncident ? (
+            <>
+              {" "}
+              <button className="btn" type="button" onClick={onOpenIncident}>
+                Open incident
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : (
+        <p className="muted">
+          This report is not on an open incident, so nobody is assigned. An incident opens when three
+          people report within 10 minutes. Click that incident to choose who is working on it.
+        </p>
+      )}
     </Drawer>
   );
 }

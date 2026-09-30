@@ -649,9 +649,18 @@ html[data-theme="dark"] .login-card {
   color: var(--text-dim);
 }
 
+.form-row .cselect,
+.field .cselect,
+.modal-card .cselect {
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .field input,
 .field select,
 .field textarea {
+  width: 100%;
   background: var(--bg);
   border: 1px solid var(--border-strong);
   color: var(--text);
@@ -682,9 +691,16 @@ html[data-theme="dark"] .login-card {
   gap: 0.75rem;
 }
 
+.form-row-single {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: calc(50% - 0.375rem);
+}
+
 @media (max-width: 640px) {
-  .form-row {
+  .form-row,
+  .form-row-single {
     grid-template-columns: 1fr;
+    max-width: none;
   }
 }
 
@@ -953,11 +969,28 @@ html[data-theme="dark"] .login-card {
   border-radius: 8px;
 }
 
+.room-table td {
+  vertical-align: middle;
+}
+
+.room-name {
+  font-weight: 600;
+}
+
 .room-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   justify-content: flex-end;
+}
+
+.room-actions .btn {
+  white-space: nowrap;
+  padding: 0.4rem 0.65rem;
+}
+
+.room-off {
+  margin-top: 0.85rem;
 }
 
 .confirm-line {

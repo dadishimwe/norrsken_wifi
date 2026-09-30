@@ -271,7 +271,10 @@ export function DashboardView({ canEdit = false }: Props) {
             Opens when three people report within 10 minutes. Acknowledge and resolve record the time. Assignment records who is working on it.
           </p>
           {data.incidents.length === 0 ? (
-            <p className="empty">No open incidents yet.</p>
+            <p className="empty">
+              No open incidents yet. One opens when three people report within 10 minutes. Click it to
+              assign someone and add notes.
+            </p>
           ) : (
             <div className="table-wrap">
               <table className="table">
@@ -446,7 +449,23 @@ export function DashboardView({ canEdit = false }: Props) {
           </>
         )}
       </section>
-      {openReport ? <ReportDrawer report={openReport} onClose={() => setOpenReportId(null)} /> : null}
+      {openReport ? (
+        <ReportDrawer
+          report={openReport}
+          incident={data.incidents.find((i) => i.id === openReport.incident_id) ?? null}
+          onOpenIncident={
+            openReport.incident_id
+              ? () => {
+                  const id = openReport.incident_id;
+                  if (!id) return;
+                  setOpenReportId(null);
+                  setOpenIncidentId(id);
+                }
+              : undefined
+          }
+          onClose={() => setOpenReportId(null)}
+        />
+      ) : null}
       {openIncident ? (
         <IncidentDrawer
           incident={openIncident}
