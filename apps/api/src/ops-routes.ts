@@ -7,6 +7,7 @@ import {
   countReportsForZone,
   deleteReport,
   deleteZone,
+  getOpsUserById,
   getOpsUserByUsername,
   getZone,
   listAllZonesWithCounts,
@@ -32,6 +33,7 @@ import {
 import type { Env } from "./env.js";
 import { HttpError } from "./reports-service.js";
 import { buildZoneQr } from "./qr-service.js";
+import { postAlertsThread } from "./slack-alert.js";
 import { slackLiveStatus } from "./slack/status.js";
 
 function labelList(ids: unknown, labels: Record<string, string>): string {
@@ -152,8 +154,71 @@ async function requireOps(
   return user;
 }
 
-function requireAdmin(user: OpsUser) {
-  if (user.role !== "admin") throw new HttpError(403, "forbidden");
+function requireStaff(user: OpsUser) {
+  if (user.role === "viewer") throw new HttpError(403, "forbidden");
+}
+
+function requireSuperAdmin(user: OpsUser) {
+  if (user.role !== "super_admin") throw new HttpError(403, "forbidden");
+}
+
+function publicUser(user: OpsUser) {
+  return {
+    id: user.id,
+    username: user.username,
+    display_name: user.display_name,
+    role: user.role,
+    company: user.company,
+  };
+}
+
+const COMPANIES = ["norrsken", "zuba", "dct"] as const;
+
+async function incidentThread(
+  db: Pool,
+  incidentId: string,
+): Promise<{ places: string; channel: string | null; threadTs: string | null }> {
+  const { rows } = await db.query<{
+    zones: string[];
+    alert_channel: string | null;
+    alert_ts: string | null;
+  }>(
+    `
+    select i.zones, r.alert_channel, r.alert_ts
+    from incident i
+    left join lateral (
+      select alert_channel, alert_ts
+      from report
+      where incident_id = i.id and alert_ts is not null
+      order by created_at desc
+      limit 1
+    ) r on true
+    where i.id = $1
+    `,
+    [incidentId],
+  );
+  const row = rows[0];
+  if (!row) return { places: "the house", channel: null, threadTs: null };
+  const labels = await db.query<{ label: string }>(
+    `select label from zone where id = any($1::text[]) order by sort, label`,
+    [row.zones],
+  );
+  const places = labels.rows.map((z) => z.label).filter(Boolean).join(", ") || "the house";
+  return { places, channel: row.alert_channel, threadTs: row.alert_ts };
+}
+
+async function notifyIncident(
+  db: Pool,
+  env: Env,
+  incidentId: string,
+  text: string,
+): Promise<boolean> {
+  const thread = await incidentThread(db, incidentId);
+  return postAlertsThread(env, {
+    text: `Incident (${thread.places}): ${text}`,
+    channel: thread.channel,
+    threadTs: thread.threadTs,
+  });
 }
 
 const loginSchema = z.object({
@@ -169,7 +234,8 @@ const createUserSchema = z.object({
     .regex(/^[a-z0-9._-]+$/i, "username: letters, numbers, . _ -"),
   display_name: z.string().min(1).max(80),
   password: z.string().min(12).max(128),
-  role: z.enum(["admin", "viewer"]).default("viewer"),
+  role: z.enum(["super_admin", "admin", "viewer"]).default("viewer"),
+  company: z.enum(COMPANIES).default("norrsken"),
 });
 
 export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env) {
@@ -184,14 +250,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
 
     const token = await createOpsSession(db, user.id);
     setSessionCookie(reply, token, env);
-    return {
-      user: {
-        id: user.id,
-        username: user.username,
-        display_name: user.display_name,
-        role: user.role,
-      },
-    };
+    return { user: publicUser(user) };
   });
 
   app.post("/api/ops/logout", async (req, reply) => {
@@ -204,14 +263,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.get("/api/ops/me", async (req, reply) => {
     try {
       const user = await requireOps(req, reply, db);
-      return {
-        user: {
-          id: user.id,
-          username: user.username,
-          display_name: user.display_name,
-          role: user.role,
-        },
-      };
+      return { user: publicUser(user) };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       throw err;
@@ -263,14 +315,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       if (parsed.data.password) {
         await setOpsUserPassword(db, me.id, parsed.data.password);
       }
-      return {
-        user: {
-          id: user.id,
-          username: user.username,
-          display_name: user.display_name,
-          role: user.role,
-        },
-      };
+      return { user: publicUser(user) };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
@@ -283,7 +328,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.get("/api/ops/users", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
-      requireAdmin(me);
+      requireStaff(me);
       const users = await listOpsUsers(db);
       return { users };
     } catch (err) {
@@ -295,18 +340,23 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.post("/api/ops/users", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
-      requireAdmin(me);
+      requireStaff(me);
       const parsed = createUserSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.code(400).send({
           error: parsed.error.issues.map((i) => i.message).join("; "),
         });
       }
+      if (parsed.data.role !== "viewer") requireSuperAdmin(me);
       const user = await createOpsUser(db, {
-        ...parsed.data,
+        username: parsed.data.username,
+        display_name: parsed.data.display_name,
+        password: parsed.data.password,
+        role: parsed.data.role,
+        company: parsed.data.company,
         created_by: me.id,
       });
-      return reply.code(201).send({ user });
+      return reply.code(201).send({ user: publicUser(user) });
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
@@ -319,7 +369,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.patch("/api/ops/users/:id", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
-      requireAdmin(me);
+      requireStaff(me);
       const { id } = req.params as { id: string };
       const body = z
         .object({
@@ -339,6 +389,9 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       if (body.data.active === false && id === me.id) {
         return reply.code(400).send({ error: "cannot_deactivate_self" });
       }
+      const target = await getOpsUserById(db, id);
+      if (!target) return reply.code(404).send({ error: "not_found" });
+      if (target.role !== "viewer") requireSuperAdmin(me);
 
       let user = null;
       if (body.data.username) {
@@ -353,7 +406,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         user = user ?? (await listOpsUsers(db)).find((u) => u.id === id) ?? null;
       }
       if (!user) return reply.code(404).send({ error: "not_found" });
-      return { user };
+      return { user: publicUser(user) };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
@@ -365,18 +418,28 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
 
   app.get("/api/ops/dashboard", async (req, reply) => {
     try {
-      await requireOps(req, reply, db);
+      const me = await requireOps(req, reply, db);
 
-      const [kpi, zones, reports, incidents] = await Promise.all([
+      const [kpi, zones, reports, incidents, assignees] = await Promise.all([
         db.query(`select * from v_kpi_daily`),
         db.query(`select * from v_zone_health`),
         db.query(`select * from v_reports_full order by created_at desc limit 50`),
         db.query(`
-          select v.*, i.root_cause, (
-            select max(r.created_at) from report r where r.incident_id = v.id
-          ) as last_report_at
+          select v.*, i.root_cause, i.assigned_to,
+            u.display_name as assignee_name,
+            u.company as assignee_company,
+            (
+              select max(r.created_at) from report r where r.incident_id = v.id
+            ) as last_report_at
           from v_open_incidents v
           join incident i on i.id = v.id
+          left join ops_user u on u.id = i.assigned_to
+        `),
+        db.query(`
+          select id, display_name, company
+          from ops_user
+          where active = true and role in ('super_admin', 'admin')
+          order by display_name
         `),
       ]);
 
@@ -385,6 +448,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         zones: zones.rows,
         reports: reports.rows,
         incidents: incidents.rows,
+        assignees: me.role === "viewer" ? [] : assignees.rows,
       };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
@@ -444,11 +508,13 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
 
   const incidentActionSchema = z.object({
     action: z.enum(["ack", "investigating", "resolved"]),
+    post_to_slack: z.boolean().optional(),
   });
 
   app.post("/api/ops/incidents/:id", async (req, reply) => {
     try {
-      await requireOps(req, reply, db);
+      const me = await requireOps(req, reply, db);
+      requireStaff(me);
       const id = (req.params as { id: string }).id;
       const parsed = incidentActionSchema.safeParse(req.body);
       if (!parsed.success) return reply.code(400).send({ error: "bad_action" });
@@ -478,7 +544,126 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       );
       const incident = rows[0];
       if (!incident) return reply.code(404).send({ error: "not_found" });
-      return { incident };
+      let slack_posted = false;
+      if (parsed.data.post_to_slack) {
+        const line =
+          action === "ack" ? "Acknowledged." : action === "investigating" ? "Marked investigating." : "Marked resolved.";
+        slack_posted = await notifyIncident(db, env, id, line);
+      }
+      return { incident, slack_posted };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get("/api/ops/incidents/:id/comments", async (req, reply) => {
+    try {
+      await requireOps(req, reply, db);
+      const id = (req.params as { id: string }).id;
+      const { rows } = await db.query(
+        `
+        select c.id, c.body, c.created_at, c.posted_to_slack,
+          u.display_name as author_name, u.company as author_company
+        from incident_comment c
+        left join ops_user u on u.id = c.author_id
+        where c.incident_id = $1
+        order by c.created_at
+        `,
+        [id],
+      );
+      return { comments: rows };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.post("/api/ops/incidents/:id/comments", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireStaff(me);
+      const id = (req.params as { id: string }).id;
+      const parsed = z
+        .object({
+          body: z.string().trim().min(1).max(2000),
+          post_to_slack: z.boolean().optional(),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "invalid_body" });
+      const exists = await db.query(`select 1 from incident where id = $1`, [id]);
+      if (!exists.rows[0]) return reply.code(404).send({ error: "not_found" });
+      let posted = false;
+      if (parsed.data.post_to_slack) {
+        posted = await notifyIncident(db, env, id, parsed.data.body);
+      }
+      const { rows } = await db.query(
+        `
+        insert into incident_comment (incident_id, author_id, body, posted_to_slack)
+        values ($1, $2, $3, $4)
+        returning id, body, created_at, posted_to_slack
+        `,
+        [id, me.id, parsed.data.body, posted],
+      );
+      return reply.code(201).send({
+        comment: {
+          ...rows[0],
+          author_name: me.display_name,
+          author_company: me.company,
+        },
+        slack_posted: posted,
+      });
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.patch("/api/ops/incidents/:id", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireStaff(me);
+      const id = (req.params as { id: string }).id;
+      const parsed = z
+        .object({
+          assigned_to: z.string().uuid().nullable(),
+          post_to_slack: z.boolean().optional(),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "invalid_body" });
+      let assignee: OpsUser | null = null;
+      if (parsed.data.assigned_to) {
+        assignee = await getOpsUserById(db, parsed.data.assigned_to);
+        if (!assignee || !assignee.active || assignee.role === "viewer") {
+          return reply.code(400).send({ error: "bad_assignee" });
+        }
+      }
+      const { rows } = await db.query(
+        `
+        update incident
+        set assigned_to = $2
+        where id = $1
+        returning id, assigned_to
+        `,
+        [id, parsed.data.assigned_to],
+      );
+      if (!rows[0]) return reply.code(404).send({ error: "not_found" });
+      let slack_posted = false;
+      if (parsed.data.post_to_slack) {
+        const who = assignee
+          ? `Assigned to ${assignee.display_name} (${assignee.company}).`
+          : "Assignment cleared.";
+        slack_posted = await notifyIncident(db, env, id, who);
+      }
+      return {
+        incident: {
+          id: rows[0].id,
+          assigned_to: rows[0].assigned_to,
+          assignee_name: assignee?.display_name ?? null,
+          assignee_company: assignee?.company ?? null,
+        },
+        slack_posted,
+      };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       throw err;
@@ -511,7 +696,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.post("/api/ops/zones", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
-      requireAdmin(me);
+      requireStaff(me);
       const parsed = createZoneSchema.safeParse(req.body);
       if (!parsed.success) {
         return reply.code(400).send({
@@ -541,7 +726,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.patch("/api/ops/zones/:id", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
-      requireAdmin(me);
+      requireStaff(me);
       const { id } = req.params as { id: string };
       const body = z
         .object({
@@ -634,7 +819,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.delete("/api/ops/zones/:id", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
-      requireAdmin(me);
+      requireStaff(me);
       const { id } = req.params as { id: string };
       if (id === UNIVERSAL_ZONE_ID) {
         return reply.code(409).send({ error: "universal_zone" });
@@ -693,7 +878,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.delete("/api/ops/reports/:id", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
-      requireAdmin(me);
+      requireStaff(me);
       const { id } = req.params as { id: string };
       const deleted = await deleteReport(db, id);
       if (!deleted) return reply.code(404).send({ error: "not_found" });
@@ -708,6 +893,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
     try {
       await requireOps(req, reply, db);
       const { rows } = await db.query(`select * from v_reports_full order by created_at desc limit 5000`);
+      // Raw guest report fields only. Ticket assignment and comments stay off this file.
       type CsvCol = { title: string; field: string; kind?: "device" | "browser" };
       const columns: CsvCol[] = [
         { title: "id", field: "id" },
@@ -782,7 +968,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       }
       const where = filters.join(" and ");
 
-      const [perDay, apps, symptoms, wifi, zones, companies, userTypes, contact, kpi, zoneList] = await Promise.all([
+      const [perDay, apps, symptoms, wifi, zones, companies, userTypes, contact, kpi, zoneList, resolvedByCompany] = await Promise.all([
         db.query(
           `
           select d::date as day, coalesce(c.n, 0)::int as reports
@@ -884,6 +1070,17 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         db.query(
           `select id, label from zone where active = true and id <> 'house' order by sort, label`,
         ),
+        db.query(`
+          select u.company,
+            count(*)::int as n,
+            round(avg(extract(epoch from (i.resolved_at - i.opened_at)) / 60))::int as mttr_minutes
+          from incident i
+          join ops_user u on u.id = i.assigned_to
+          where i.status = 'resolved'
+            and i.resolved_at > now() - interval '30 days'
+          group by u.company
+          order by n desc
+        `),
       ]);
       return {
         filters: { days, channel: channel ?? "all", zone_id: zoneId },
@@ -897,6 +1094,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         companies: companies.rows,
         user_types: userTypes.rows,
         contact: contact.rows[0] ?? { with_contact: 0, total: 0 },
+        resolved_by_company: resolvedByCompany.rows,
         note: "Charts respect the filters above.",
       };
     } catch (err) {

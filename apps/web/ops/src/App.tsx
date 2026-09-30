@@ -9,6 +9,16 @@ import { AccountDialog } from "./AccountDialog";
 import { BrandLogo, ThemeToggle } from "./BrandLogo";
 import { useTheme } from "./theme";
 
+function staffRole(role: string): boolean {
+  return role === "admin" || role === "super_admin";
+}
+
+function roleLabel(role: string): string {
+  if (role === "super_admin") return "Super admin";
+  if (role === "admin") return "Admin";
+  return "Viewer";
+}
+
 type Tab = "dashboard" | "graphs" | "integrations" | "users";
 
 export function App() {
@@ -59,7 +69,8 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <div className="user-chip">
-            <em>{user.display_name}</em> · {user.role}
+            <em>{user.display_name}</em> · {roleLabel(user.role)}
+            {user.company ? ` · ${user.company === "dct" ? "DCT" : user.company === "zuba" ? "Zuba" : "Norrsken"}` : ""}
           </div>
           <button className="btn btn-ghost" type="button" onClick={() => setAccountOpen(true)}>
             Account
@@ -77,7 +88,7 @@ export function App() {
             ["dashboard", "Dashboard"],
             ["graphs", "Graphs"],
             ["integrations", "Integrations"],
-            ...(user.role === "admin" ? [["users", "Users"] as const] : []),
+            ...(staffRole(user.role) ? [["users", "Users"] as const] : []),
           ] as const
         ).map(([id, label]) => (
           <button
@@ -107,13 +118,13 @@ export function App() {
 
       <main className="page">
         {tab === "users" ? (
-          <UsersAdmin />
+          <UsersAdmin me={user} />
         ) : tab === "integrations" ? (
-          <IntegrationsView canEdit={user.role === "admin"} />
+          <IntegrationsView canEdit={staffRole(user.role)} />
         ) : tab === "graphs" ? (
           <GraphsView />
         ) : (
-          <DashboardView canEdit={user.role === "admin"} />
+          <DashboardView canEdit={staffRole(user.role)} />
         )}
       </main>
 

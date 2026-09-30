@@ -21,9 +21,9 @@ async function main() {
         username,
         display_name: display,
         password,
-        role: "admin",
+        role: "super_admin",
       });
-      console.log(`Created admin ${username}`);
+      console.log(`Created super admin ${username}`);
     }
   } finally {
     await db.end();

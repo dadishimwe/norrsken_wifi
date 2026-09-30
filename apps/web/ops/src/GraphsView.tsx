@@ -123,6 +123,25 @@ export function GraphsView() {
       title: `${c.company}: ${n} report${n === 1 ? "" : "s"}`,
     };
   });
+  const roomPoints = (data.top_zones ?? []).map((z) => {
+    const n = Number(z.report_count) || 0;
+    const name = z.zone_id === "house" ? "House QR" : z.label;
+    return {
+      label: name,
+      value: n,
+      title: `${name}: ${n} report${n === 1 ? "" : "s"}`,
+    };
+  });
+  const resolvedPoints = (data.resolved_by_company ?? []).map((row) => {
+    const n = Number(row.n) || 0;
+    const name = row.company === "dct" ? "DCT" : row.company === "zuba" ? "Zuba" : "Norrsken";
+    const minutes = row.mttr_minutes == null ? "" : ` · ${row.mttr_minutes} min to resolve`;
+    return {
+      label: name,
+      value: n,
+      title: `${name}: ${n} resolved${minutes}`,
+    };
+  });
   const whoPoints = (data.user_types ?? []).map((row) => {
     const n = Number(row.n) || 0;
     const name = labelUserType(row.user_type);
@@ -267,6 +286,14 @@ export function GraphsView() {
 
         <section className="panel chart-panel">
           <div className="chart-head">
+            <h2>Rooms</h2>
+            <span className="chart-kind">Where reports came from</span>
+          </div>
+          <HorizontalBars items={roomPoints} maxItems={12} />
+        </section>
+
+        <section className="panel chart-panel">
+          <div className="chart-head">
             <h2>Who reported</h2>
             <span className="chart-kind">Slack reports count as members</span>
           </div>
@@ -283,6 +310,14 @@ export function GraphsView() {
             </span>
           </div>
           <HorizontalBars items={companyPoints} maxItems={8} />
+        </section>
+
+        <section className="panel chart-panel">
+          <div className="chart-head">
+            <h2>Resolved by company</h2>
+            <span className="chart-kind">30 days · assigned incidents</span>
+          </div>
+          <HorizontalBars items={resolvedPoints} maxItems={3} />
         </section>
       </div>
 

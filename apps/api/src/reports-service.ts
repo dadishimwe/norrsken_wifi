@@ -251,11 +251,18 @@ export async function createReport(
     console.error("incident engine", err);
   }
   try {
-    await postReportAlert(env, {
+    const posted = await postReportAlert(env, {
       company: input.company,
       contactOk: input.contact_ok,
       contactName: input.contact_ok ? input.contact_name : null,
     });
+    if (posted) {
+      await db.query(`update report set alert_channel = $2, alert_ts = $3 where id = $1`, [
+        reportId,
+        posted.channel,
+        posted.ts,
+      ]);
+    }
   } catch (err) {
     console.error("slack alert", err instanceof Error ? err.message : "failed");
   }

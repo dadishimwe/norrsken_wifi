@@ -3,15 +3,13 @@ import { createPortal } from "react-dom";
 import { downloadCsv, opsApi, type DashboardPayload, type ReportsPage } from "./api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
-  formatClarifiersDisplay,
   labelAppEntry,
-  labelBrowser,
-  labelDeviceType,
   labelSymptom,
   labelUserType,
   labelWhen,
 } from "./labels";
 import { AppLabel, ChannelLabel } from "./marks";
+import { IncidentDrawer, ReportDrawer } from "./drawers";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -28,10 +26,6 @@ function timeAgo(iso: string): string {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
-}
-
-function clarifierText(c: Record<string, unknown> | undefined): string {
-  return formatClarifiersDisplay(c) || "—";
 }
 
 function RowMenu({ onDelete }: { onDelete: () => void }) {
@@ -133,6 +127,9 @@ export function DashboardView({ canEdit = false }: Props) {
   const [tick, setTick] = useState(0);
   const [pending, setPending] = useState<PendingDelete | null>(null);
   const [resolveId, setResolveId] = useState<string | null>(null);
+  const [resolveSlack, setResolveSlack] = useState(false);
+  const [openReportId, setOpenReportId] = useState<string | null>(null);
+  const [openIncidentId, setOpenIncidentId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   function flash(msg: string) {
@@ -179,13 +176,23 @@ export function DashboardView({ canEdit = false }: Props) {
     }
   }
 
-  async function actOnIncident(id: string, action: "ack" | "investigating" | "resolved") {
+  async function actOnIncident(
+    id: string,
+    action: "ack" | "investigating" | "resolved",
+    postToSlack = false,
+  ) {
     setBusy(true);
     try {
-      await opsApi.incidentAction(id, action);
+      const result = await opsApi.incidentAction(id, action, postToSlack);
       setResolveId(null);
       flash(
-        action === "ack" ? "Acknowledged" : action === "investigating" ? "Marked investigating" : "Resolved",
+        postToSlack && result.slack_posted === false
+          ? "Saved. Slack did not get the update."
+          : action === "ack"
+            ? "Acknowledged"
+            : action === "investigating"
+              ? "Marked investigating"
+              : "Resolved",
       );
       setTick((t) => t + 1);
     } catch (err) {
@@ -201,6 +208,8 @@ export function DashboardView({ canEdit = false }: Props) {
 
   const kpi = data.kpi;
   const rows = reportsPage?.reports ?? data.reports;
+  const openReport = rows.find((r) => r.id === openReportId) ?? null;
+  const openIncident = data.incidents.find((i) => i.id === openIncidentId) ?? null;
 
   return (
     <>
@@ -213,7 +222,7 @@ export function DashboardView({ canEdit = false }: Props) {
         busy={busy}
         onCancel={() => !busy && setResolveId(null)}
         onConfirm={() => {
-          if (resolveId) void actOnIncident(resolveId, "resolved");
+          if (resolveId) void actOnIncident(resolveId, "resolved", resolveSlack);
         }}
       />
       <ConfirmDialog
@@ -259,7 +268,7 @@ export function DashboardView({ canEdit = false }: Props) {
         <section className="panel">
           <h2>Open incidents</h2>
           <p className="muted" style={{ marginBottom: "0.75rem" }}>
-            Opens when three people report within 10 minutes. Acknowledge and resolve record the time only.
+            Opens when three people report within 10 minutes. Acknowledge and resolve record the time. Assignment records who is working on it.
           </p>
           {data.incidents.length === 0 ? (
             <p className="empty">No open incidents yet.</p>
@@ -272,7 +281,7 @@ export function DashboardView({ canEdit = false }: Props) {
                     <th>Status</th>
                     <th>Places</th>
                     <th>Reports</th>
-                    <th className="col-actions" aria-label="Actions" />
+                    <th>Assignee</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -283,7 +292,7 @@ export function DashboardView({ canEdit = false }: Props) {
                       !!i.last_report_at &&
                       Date.now() - new Date(i.last_report_at).getTime() >= 20 * 60_000;
                     return (
-                      <tr key={i.id}>
+                      <tr key={i.id} className="row-click" onClick={() => setOpenIncidentId(i.id)}>
                         <td>{timeAgo(i.opened_at)}</td>
                         <td>
                           {i.status === "investigating" ? "Investigating" : "Open"}
@@ -295,38 +304,7 @@ export function DashboardView({ canEdit = false }: Props) {
                         </td>
                         <td>{places}</td>
                         <td>{fmtNum(i.report_count)}</td>
-                        <td className="col-actions">
-                          <div className="incident-actions">
-                            {!i.acked_at ? (
-                              <button
-                                type="button"
-                                className="btn btn-ghost"
-                                disabled={busy}
-                                onClick={() => void actOnIncident(i.id, "ack")}
-                              >
-                                Acknowledge
-                              </button>
-                            ) : null}
-                            {i.status === "open" ? (
-                              <button
-                                type="button"
-                                className="btn btn-ghost"
-                                disabled={busy}
-                                onClick={() => void actOnIncident(i.id, "investigating")}
-                              >
-                                Investigating
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className="btn"
-                              disabled={busy}
-                              onClick={() => setResolveId(i.id)}
-                            >
-                              Resolve
-                            </button>
-                          </div>
-                        </td>
+                        <td>{i.assignee_name || "—"}</td>
                       </tr>
                     );
                   })}
@@ -339,7 +317,10 @@ export function DashboardView({ canEdit = false }: Props) {
 
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div className="panel-head">
-          <h2>Reports</h2>
+          <div>
+            <h2>Reports</h2>
+            <p className="muted">CSV export is the raw reports. Ticket notes stay in the dashboard.</p>
+          </div>
           <button
             type="button"
             className="btn"
@@ -361,20 +342,20 @@ export function DashboardView({ canEdit = false }: Props) {
                     <th>Symptoms</th>
                     <th>Apps</th>
                     <th>Timing</th>
-                    <th title="Extra answers, including the room, a note, and the name typed for another app">
-                      Clarifiers
-                    </th>
+                    <th>Room</th>
                     <th>Company</th>
                     <th>Who</th>
                     <th>Contact</th>
-                    <th>Device</th>
-                    <th>Browser</th>
                     {canEdit ? <th className="col-actions" aria-label="Actions" /> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} className={busy && pending?.id === r.id ? "row-busy" : undefined}>
+                    <tr
+                      key={r.id}
+                      className={`row-click${busy && pending?.id === r.id ? " row-busy" : ""}`}
+                      onClick={() => setOpenReportId(r.id)}
+                    >
                       <td title={r.created_at}>{timeAgo(r.created_at)}</td>
                       <td>
                         <ChannelLabel channel={r.channel} />
@@ -396,7 +377,7 @@ export function DashboardView({ canEdit = false }: Props) {
                           : "—"}
                       </td>
                       <td>{labelWhen(r.when_bucket, r.occurred_at)}</td>
-                      <td className="cell-clamp">{clarifierText(r.clarifiers)}</td>
+                      <td>{r.zone_id === "house" ? "House" : r.zone_label || "—"}</td>
                       <td>{r.company?.trim() || "—"}</td>
                       <td>
                         {r.user_type
@@ -421,10 +402,8 @@ export function DashboardView({ canEdit = false }: Props) {
                           "—"
                         )}
                       </td>
-                      <td>{labelDeviceType(r.device_class)}</td>
-                      <td>{labelBrowser(r.browser)}</td>
                       {canEdit ? (
-                        <td className="col-actions">
+                        <td className="col-actions" onClick={(e) => e.stopPropagation()}>
                           <RowMenu
                             onDelete={() =>
                               setPending({
@@ -467,6 +446,28 @@ export function DashboardView({ canEdit = false }: Props) {
           </>
         )}
       </section>
+      {openReport ? <ReportDrawer report={openReport} onClose={() => setOpenReportId(null)} /> : null}
+      {openIncident ? (
+        <IncidentDrawer
+          incident={openIncident}
+          places={openIncident.zones
+            .map((id) => data.zones.find((z) => z.zone_id === id)?.label ?? id)
+            .join(", ")}
+          assignees={data.assignees ?? []}
+          canEdit={canEdit}
+          busy={busy}
+          onClose={() => setOpenIncidentId(null)}
+          onAction={(action, postToSlack) => {
+            if (action === "resolved") {
+              setResolveSlack(postToSlack);
+              setResolveId(openIncident.id);
+              return;
+            }
+            void actOnIncident(openIncident.id, action, postToSlack);
+          }}
+          onAssigned={() => setTick((t) => t + 1)}
+        />
+      ) : null}
     </>
   );
 }

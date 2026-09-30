@@ -2,11 +2,25 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { opsApi, type OpsUser } from "./api";
 import { CustomSelect } from "./CustomSelect";
+import { companyLabel } from "./drawers";
+
+const COMPANY_OPTIONS = [
+  { value: "norrsken", label: "Norrsken" },
+  { value: "zuba", label: "Zuba" },
+  { value: "dct", label: "DCT" },
+] as const;
 
 const ROLE_OPTIONS = [
   { value: "viewer", label: "Viewer — dashboard only" },
-  { value: "admin", label: "Admin — manage users" },
+  { value: "admin", label: "Admin — incidents and viewers" },
+  { value: "super_admin", label: "Super admin — manage admins" },
 ] as const;
+
+function roleLabel(role: string): string {
+  if (role === "super_admin") return "Super admin";
+  if (role === "admin") return "Admin";
+  return "Viewer";
+}
 
 function formatLastLogin(iso: string | null | undefined): string {
   if (!iso) return "Never";
@@ -21,13 +35,14 @@ function formatLastLogin(iso: string | null | undefined): string {
   });
 }
 
-export function UsersAdmin() {
+export function UsersAdmin({ me }: { me: OpsUser }) {
   const [users, setUsers] = useState<OpsUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "viewer">("viewer");
+  const [role, setRole] = useState<"super_admin" | "admin" | "viewer">("viewer");
+  const [company, setCompany] = useState<"norrsken" | "zuba" | "dct">("norrsken");
   const [busy, setBusy] = useState(false);
   const [resetUser, setResetUser] = useState<OpsUser | null>(null);
   const [nextUsername, setNextUsername] = useState("");
@@ -64,12 +79,14 @@ export function UsersAdmin() {
         username,
         display_name: displayName,
         password,
-        role,
+        role: me.role === "super_admin" ? role : "viewer",
+        company,
       });
       setUsername("");
       setDisplayName("");
       setPassword("");
       setRole("viewer");
+      setCompany("norrsken");
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "create_failed");
@@ -235,7 +252,7 @@ export function UsersAdmin() {
       <section className="panel">
         <h2>Create account</h2>
         <p className="muted" style={{ marginBottom: "1rem" }}>
-          Each monitor gets their own login. Admins can manage users; viewers see the dashboard only.
+          Each person gets their own login. Admins can create viewers. Super admins can also create admins.
         </p>
         {error ? <p className="error">{error}</p> : null}
         <form onSubmit={onCreate}>
@@ -273,11 +290,29 @@ export function UsersAdmin() {
               />
             </div>
             <div className="field">
+              {me.role === "super_admin" ? (
+                <CustomSelect
+                  label="Role"
+                  value={role}
+                  onChange={(v) => setRole(v as "super_admin" | "admin" | "viewer")}
+                  options={[...ROLE_OPTIONS]}
+                  disabled={busy}
+                />
+              ) : (
+                <>
+                  <label>Role</label>
+                  <p className="muted" style={{ margin: "0.45rem 0 0" }}>
+                    Viewer
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="field">
               <CustomSelect
-                label="Role"
-                value={role}
-                onChange={(v) => setRole(v as "admin" | "viewer")}
-                options={[...ROLE_OPTIONS]}
+                label="Company"
+                value={company}
+                onChange={(v) => setCompany(v as "norrsken" | "zuba" | "dct")}
+                options={[...COMPANY_OPTIONS]}
                 disabled={busy}
               />
             </div>
@@ -295,6 +330,7 @@ export function UsersAdmin() {
             <tr>
               <th>User</th>
               <th>Role</th>
+              <th>Company</th>
               <th>Status</th>
               <th>Last sign-in</th>
               <th />
@@ -307,16 +343,23 @@ export function UsersAdmin() {
                   <strong>{u.display_name}</strong>
                   <div className="muted">@{u.username}</div>
                 </td>
-                <td>{u.role}</td>
+                <td>{roleLabel(u.role)}</td>
+                <td>{companyLabel(u.company)}</td>
                 <td>{u.active === false ? "disabled" : "active"}</td>
                 <td>{formatLastLogin(u.last_login_at)}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  <button className="btn btn-ghost" type="button" onClick={() => openReset(u)}>
-                    Edit
-                  </button>{" "}
-                  <button className="btn btn-ghost" type="button" onClick={() => toggleActive(u)}>
-                    {u.active === false ? "Enable" : "Disable"}
-                  </button>
+                  {me.role === "super_admin" || u.role === "viewer" ? (
+                    <>
+                      <button className="btn btn-ghost" type="button" onClick={() => openReset(u)}>
+                        Edit
+                      </button>{" "}
+                      <button className="btn btn-ghost" type="button" onClick={() => toggleActive(u)}>
+                        {u.active === false ? "Enable" : "Disable"}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="muted">View only</span>
+                  )}
                 </td>
               </tr>
             ))}

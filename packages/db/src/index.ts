@@ -50,4 +50,5 @@ export {
   purgeExpiredOpsSessions,
   type OpsUser,
   type OpsRole,
+  type OpsCompany,
 } from "./ops-auth.js";

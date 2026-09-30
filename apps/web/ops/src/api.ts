@@ -2,7 +2,8 @@ export type OpsUser = {
   id: string;
   username: string;
   display_name: string;
-  role: "admin" | "viewer";
+  role: "super_admin" | "admin" | "viewer";
+  company: "norrsken" | "zuba" | "dct";
   active?: boolean;
   created_at?: string;
   last_login_at?: string | null;
@@ -106,7 +107,20 @@ export type DashboardPayload = {
     root_cause?: string | null;
     report_count: string | number;
     last_report_at?: string | null;
+    assigned_to?: string | null;
+    assignee_name?: string | null;
+    assignee_company?: string | null;
   }>;
+  assignees: Array<{ id: string; display_name: string; company: string }>;
+};
+
+export type IncidentComment = {
+  id: string;
+  body: string;
+  created_at: string;
+  posted_to_slack: boolean;
+  author_name?: string | null;
+  author_company?: string | null;
 };
 
 export type ReportsPage = {
@@ -129,6 +143,7 @@ export type AnalyticsPayload = {
   companies?: Array<{ company: string; n: number }>;
   user_types?: Array<{ user_type: string; n: number }>;
   contact?: { with_contact: number; total: number };
+  resolved_by_company?: Array<{ company: string; n: number; mttr_minutes: number | null }>;
   note?: string;
 };
 
@@ -183,10 +198,30 @@ export const opsApi = {
     api<ReportsPage>(`/api/ops/reports?page=${page}&limit=${limit}`),
   deleteReport: (id: string) =>
     api<{ ok: boolean; deleted: string }>(`/api/ops/reports/${id}`, { method: "DELETE" }),
-  incidentAction: (id: string, action: "ack" | "investigating" | "resolved") =>
-    api<{ incident: { id: string; status: string } }>(`/api/ops/incidents/${id}`, {
+  incidentAction: (id: string, action: "ack" | "investigating" | "resolved", postToSlack = false) =>
+    api<{ incident: { id: string; status: string }; slack_posted?: boolean }>(`/api/ops/incidents/${id}`, {
       method: "POST",
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, post_to_slack: postToSlack }),
+    }),
+  incidentComments: (id: string) =>
+    api<{ comments: IncidentComment[] }>(`/api/ops/incidents/${id}/comments`),
+  addIncidentComment: (id: string, body: string, postToSlack: boolean) =>
+    api<{ comment: IncidentComment; slack_posted: boolean }>(`/api/ops/incidents/${id}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ body, post_to_slack: postToSlack }),
+    }),
+  assignIncident: (id: string, assignedTo: string | null, postToSlack: boolean) =>
+    api<{
+      incident: {
+        id: string;
+        assigned_to: string | null;
+        assignee_name: string | null;
+        assignee_company: string | null;
+      };
+      slack_posted: boolean;
+    }>(`/api/ops/incidents/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ assigned_to: assignedTo, post_to_slack: postToSlack }),
     }),
   analytics: (opts?: { days?: number; channel?: string; zone_id?: string | null }) => {
     const sp = new URLSearchParams();
@@ -201,7 +236,8 @@ export const opsApi = {
     username: string;
     display_name: string;
     password: string;
-    role: "admin" | "viewer";
+    role: "super_admin" | "admin" | "viewer";
+    company: "norrsken" | "zuba" | "dct";
   }) =>
     api<{ user: OpsUser }>("/api/ops/users", {
       method: "POST",

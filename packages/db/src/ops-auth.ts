@@ -1,17 +1,22 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 
-export type OpsRole = "admin" | "viewer";
+export type OpsRole = "super_admin" | "admin" | "viewer";
+export type OpsCompany = "norrsken" | "zuba" | "dct";
 
 export type OpsUser = {
   id: string;
   username: string;
   display_name: string;
   role: OpsRole;
+  company: OpsCompany;
   active: boolean;
   created_at: Date;
   last_login_at: Date | null;
 };
+
+const OPS_USER_FIELDS =
+  "id, username, display_name, role, company, active, created_at, last_login_at";
 
 const SCRYPT_KEYLEN = 64;
 
@@ -47,21 +52,23 @@ export async function createOpsUser(
     display_name: string;
     password: string;
     role: OpsRole;
+    company?: OpsCompany;
     created_by?: string | null;
   },
 ): Promise<OpsUser> {
   const password_hash = hashPassword(input.password);
   const { rows } = await db.query<OpsUser>(
     `
-    insert into ops_user (username, display_name, password_hash, role, created_by)
-    values ($1, $2, $3, $4, $5)
-    returning id, username, display_name, role, active, created_at, last_login_at
+    insert into ops_user (username, display_name, password_hash, role, company, created_by)
+    values ($1, $2, $3, $4, $5, $6)
+    returning ${OPS_USER_FIELDS}
     `,
     [
       input.username.toLowerCase().trim(),
       input.display_name.trim(),
       password_hash,
       input.role,
+      input.company ?? "norrsken",
       input.created_by ?? null,
     ],
   );
@@ -73,7 +80,7 @@ export async function createOpsUser(
 export async function listOpsUsers(db: Pool): Promise<OpsUser[]> {
   const { rows } = await db.query<OpsUser>(
     `
-    select id, username, display_name, role, active, created_at, last_login_at
+    select ${OPS_USER_FIELDS}
     from ops_user
     order by created_at
     `,
@@ -87,7 +94,7 @@ export async function getOpsUserByUsername(
 ): Promise<(OpsUser & { password_hash: string }) | null> {
   const { rows } = await db.query<OpsUser & { password_hash: string }>(
     `
-    select id, username, display_name, role, active, created_at, last_login_at, password_hash
+    select ${OPS_USER_FIELDS}, password_hash
     from ops_user where username = $1
     `,
     [username.toLowerCase().trim()],
@@ -98,7 +105,7 @@ export async function getOpsUserByUsername(
 export async function getOpsUserById(db: Pool, id: string): Promise<OpsUser | null> {
   const { rows } = await db.query<OpsUser>(
     `
-    select id, username, display_name, role, active, created_at, last_login_at
+    select ${OPS_USER_FIELDS}
     from ops_user where id = $1
     `,
     [id],
@@ -115,7 +122,7 @@ export async function setOpsUserActive(
     `
     update ops_user set active = $2
     where id = $1
-    returning id, username, display_name, role, active, created_at, last_login_at
+    returning ${OPS_USER_FIELDS}
     `,
     [id, active],
   );
@@ -142,7 +149,7 @@ export async function setOpsUserUsername(
     `
     update ops_user set username = $2
     where id = $1
-    returning id, username, display_name, role, active, created_at, last_login_at
+    returning ${OPS_USER_FIELDS}
     `,
     [id, username.toLowerCase().trim()],
   );
@@ -182,7 +189,7 @@ export async function resolveOpsSession(
   const tokenHash = hashSessionToken(token);
   const { rows } = await db.query<OpsUser>(
     `
-    select u.id, u.username, u.display_name, u.role, u.active, u.created_at, u.last_login_at
+    select u.id, u.username, u.display_name, u.role, u.company, u.active, u.created_at, u.last_login_at
     from ops_session s
     join ops_user u on u.id = s.user_id
     where s.token_hash = $1
