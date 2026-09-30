@@ -230,9 +230,9 @@ export function GraphsView() {
           <div className="value">{kpi?.reports_today ?? "—"}</div>
         </div>
         <div className="kpi">
-          <div className="label">Open incidents</div>
+          <div className="label">Open reports</div>
           <div className="value">{kpi?.open_incidents ?? "—"}</div>
-          <div className="hint">Related reports grouped as one outage</div>
+          <div className="hint">Reports that are not resolved</div>
         </div>
         <div className="kpi">
           <div className="label">Window total</div>

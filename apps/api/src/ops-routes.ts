@@ -175,6 +175,17 @@ function publicUser(user: OpsUser) {
 
 const COMPANIES = ["norrsken", "zuba", "dct"] as const;
 
+const reportWorkSelect = `
+  select v.*,
+    r.work_status,
+    r.assigned_to,
+    u.display_name as assignee_name,
+    u.company as assignee_company
+  from v_reports_full v
+  join report r on r.id = v.id
+  left join ops_user u on u.id = r.assigned_to
+`;
+
 async function incidentThread(
   db: Pool,
   incidentId: string,
@@ -419,30 +430,13 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
     try {
       const me = await requireOps(req, reply, db);
 
-      const [kpi, zones, reports, incidents, assignees] = await Promise.all([
+      const [kpi, zones, reports, assignees] = await Promise.all([
         db.query(`select * from v_kpi_daily`),
         db.query(`select * from v_zone_health`),
-        db.query(`select * from v_reports_full order by created_at desc limit 50`),
         db.query(`
-          select v.*, i.root_cause, i.assigned_to,
-            u.display_name as assignee_name,
-            u.company as assignee_company,
-            r.company as report_company,
-            r.zone_id as room_id,
-            coalesce(z.label, r.zone_id) as room_label,
-            r.created_at as last_report_at
-          from v_open_incidents v
-          join incident i on i.id = v.id
-          join lateral (
-            select company, zone_id, created_at
-            from report
-            where incident_id = i.id
-            order by created_at
-            limit 1
-          ) r on true
-          left join zone z on z.id = r.zone_id
-          left join ops_user u on u.id = i.assigned_to
-          where i.scope = 'report'
+          ${reportWorkSelect}
+          order by v.created_at desc
+          limit 50
         `),
         db.query(`
           select id, display_name, company
@@ -456,7 +450,6 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         kpi: kpi.rows[0] ?? null,
         zones: zones.rows,
         reports: reports.rows,
-        incidents: incidents.rows,
         assignees: me.role === "viewer" ? [] : assignees.rows,
       };
     } catch (err) {
@@ -853,21 +846,40 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
 
   app.get("/api/ops/reports", async (req, reply) => {
     try {
-      await requireOps(req, reply, db);
-      const q = req.query as { page?: string; limit?: string };
+      const me = await requireOps(req, reply, db);
+      const q = req.query as { page?: string; limit?: string; assignment?: string };
       const page = Math.max(1, Number(q.page) || 1);
       const limit = Math.min(100, Math.max(1, Number(q.limit) || 25));
       const offset = (page - 1) * limit;
+      const assignment = q.assignment;
+      const where: string[] = [];
+      const params: unknown[] = [];
+      if (assignment === "mine") {
+        params.push(me.id);
+        where.push(`r.assigned_to = $${params.length}`);
+      } else if (assignment === "assigned") {
+        where.push(`r.assigned_to is not null`);
+      } else if (assignment === "unassigned") {
+        where.push(`r.assigned_to is null`);
+      }
+      const whereSql = where.length ? `where ${where.join(" and ")}` : "";
+      params.push(limit, offset);
+      const limitParam = params.length - 1;
+      const offsetParam = params.length;
 
       const [countRes, rowsRes] = await Promise.all([
-        db.query<{ n: string }>(`select count(*)::text as n from report`),
+        db.query<{ n: string }>(
+          `select count(*)::text as n from report r ${whereSql}`,
+          params.slice(0, where.length ? params.length - 2 : 0),
+        ),
         db.query(
           `
-          select * from v_reports_full
-          order by created_at desc
-          limit $1 offset $2
+          ${reportWorkSelect}
+          ${whereSql}
+          order by v.created_at desc
+          limit $${limitParam} offset $${offsetParam}
           `,
-          [limit, offset],
+          params,
         ),
       ]);
       const total = Number(countRes.rows[0]?.n ?? 0);
@@ -877,6 +889,69 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         total,
         total_pages: Math.max(1, Math.ceil(total / limit)),
         reports: rowsRes.rows,
+      };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.patch("/api/ops/reports/:id", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireStaff(me);
+      const { id } = req.params as { id: string };
+      const parsed = z
+        .object({
+          assigned_to: z.string().uuid().nullable().optional(),
+          work_status: z.enum(["open", "investigating", "resolved"]).optional(),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "invalid_body" });
+      if (parsed.data.assigned_to === undefined && !parsed.data.work_status) {
+        return reply.code(400).send({ error: "invalid_body" });
+      }
+      let assignee: OpsUser | null = null;
+      if (parsed.data.assigned_to) {
+        assignee = await getOpsUserById(db, parsed.data.assigned_to);
+        if (!assignee || !assignee.active || assignee.role === "viewer") {
+          return reply.code(400).send({ error: "bad_assignee" });
+        }
+      }
+      const setAssignee = parsed.data.assigned_to !== undefined;
+      const { rows } = await db.query(
+        `
+        update report
+        set
+          assigned_to = case when $3::boolean then $2::uuid else assigned_to end,
+          work_status = coalesce($4, work_status),
+          acked_at = case
+            when $4 in ('investigating', 'resolved') then coalesce(acked_at, now())
+            else acked_at
+          end,
+          resolved_at = case
+            when $4 = 'resolved' then coalesce(resolved_at, now())
+            when $4 in ('open', 'investigating') then null
+            else resolved_at
+          end
+        where id = $1
+        returning id, work_status, assigned_to
+        `,
+        [id, parsed.data.assigned_to ?? null, setAssignee, parsed.data.work_status ?? null],
+      );
+      const saved = rows[0];
+      if (!saved) return reply.code(404).send({ error: "not_found" });
+      if (saved.assigned_to && saved.assigned_to !== parsed.data.assigned_to) {
+        assignee = await getOpsUserById(db, saved.assigned_to);
+      }
+      return {
+        report: {
+          id: saved.id,
+          work_status: saved.work_status,
+          assigned_to: saved.assigned_to,
+          assignee_name: assignee?.display_name ?? null,
+          assignee_company: assignee?.company ?? null,
+        },
       };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
@@ -1082,11 +1157,11 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         db.query(`
           select u.company,
             count(*)::int as n,
-            round(avg(extract(epoch from (i.resolved_at - i.opened_at)) / 60))::int as mttr_minutes
-          from incident i
-          join ops_user u on u.id = i.assigned_to
-          where i.status = 'resolved'
-            and i.resolved_at > now() - interval '30 days'
+            round(avg(extract(epoch from (r.resolved_at - r.created_at)) / 60))::int as mttr_minutes
+          from report r
+          join ops_user u on u.id = r.assigned_to
+          where r.work_status = 'resolved'
+            and r.resolved_at > now() - interval '30 days'
           group by u.company
           order by n desc
         `),

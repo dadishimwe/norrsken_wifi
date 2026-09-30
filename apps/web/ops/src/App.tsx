@@ -124,7 +124,7 @@ export function App() {
         ) : tab === "graphs" ? (
           <GraphsView />
         ) : (
-          <DashboardView canEdit={staffRole(user.role)} />
+          <DashboardView canEdit={staffRole(user.role)} meId={user.id} />
         )}
       </main>
 

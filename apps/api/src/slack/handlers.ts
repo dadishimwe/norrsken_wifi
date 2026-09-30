@@ -204,8 +204,8 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     const triggerId = "trigger_id" in body ? body.trigger_id : "";
     const incidentId = "value" in action ? action.value : "";
     if (!triggerId || !incidentId) return;
-    const { rows } = await db.query<{ zones: string[]; symptoms: string[] }>(
-      `select zones, symptoms from incident where id = $1 and status in ('open','investigating')`,
+    const { rows } = await db.query<{ symptoms: string[] }>(
+      `select symptoms from report where id = $1 and work_status in ('open','investigating')`,
       [incidentId],
     );
     const incident = rows[0];
@@ -346,12 +346,10 @@ async function networkStatus(db: Pool): Promise<string> {
 async function openIncidentLabels(db: Pool): Promise<{ id: string; label: string }[]> {
   const { rows } = await db.query<{ id: string; company: string | null; symptom: string | null }>(
     `
-    select i.id, r.company, r.symptoms[1] as symptom
-    from incident i
-    join report r on r.incident_id = i.id
-    where i.status in ('open', 'investigating')
-      and i.scope = 'report'
-    order by i.opened_at desc
+    select id, company, symptoms[1] as symptom
+    from report
+    where work_status in ('open', 'investigating')
+    order by created_at desc
     limit 3
     `,
   );

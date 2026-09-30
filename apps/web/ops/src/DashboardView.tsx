@@ -9,7 +9,7 @@ import {
   labelWhen,
 } from "./labels";
 import { AppLabel, ChannelLabel } from "./marks";
-import { IncidentDrawer, ReportDrawer } from "./drawers";
+import { companyLabel, ReportDrawer } from "./drawers";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -114,22 +114,41 @@ function RowMenu({ onDelete }: { onDelete: () => void }) {
   );
 }
 
-type Props = { canEdit?: boolean };
+type Props = { canEdit?: boolean; meId: string };
+
+type AssignmentFilter = "all" | "unassigned" | "assigned" | "mine";
+
+const ASSIGNMENT_FILTERS: { id: AssignmentFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "unassigned", label: "Unassigned" },
+  { id: "assigned", label: "Assigned" },
+  { id: "mine", label: "Assigned to me" },
+];
+
+function statusName(status: string | null | undefined): string {
+  if (status === "investigating") return "Investigating";
+  if (status === "resolved") return "Resolved";
+  return "Open";
+}
+
+function statusClass(status: string | null | undefined): string {
+  if (status === "investigating") return "status-mark investigating";
+  if (status === "resolved") return "status-mark resolved";
+  return "status-mark open";
+}
 
 type PendingDelete = { id: string; zoneLabel: string; when: string };
 
-export function DashboardView({ canEdit = false }: Props) {
+export function DashboardView({ canEdit = false, meId }: Props) {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [reportsPage, setReportsPage] = useState<ReportsPage | null>(null);
   const [page, setPage] = useState(1);
+  const [assignment, setAssignment] = useState<AssignmentFilter>("all");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const [pending, setPending] = useState<PendingDelete | null>(null);
-  const [resolveId, setResolveId] = useState<string | null>(null);
-  const [resolveSlack, setResolveSlack] = useState(false);
   const [openReportId, setOpenReportId] = useState<string | null>(null);
-  const [openIncidentId, setOpenIncidentId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   function flash(msg: string) {
@@ -141,7 +160,7 @@ export function DashboardView({ canEdit = false }: Props) {
     let cancelled = false;
     async function load() {
       try {
-        const [d, r] = await Promise.all([opsApi.dashboard(), opsApi.reports(page, 25)]);
+        const [d, r] = await Promise.all([opsApi.dashboard(), opsApi.reports(page, 25, assignment)]);
         if (!cancelled) {
           setData(d);
           setReportsPage(r);
@@ -157,7 +176,7 @@ export function DashboardView({ canEdit = false }: Props) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [page, tick]);
+  }, [page, tick, assignment]);
 
   async function confirmDelete() {
     if (!pending || !canEdit) return;
@@ -176,28 +195,19 @@ export function DashboardView({ canEdit = false }: Props) {
     }
   }
 
-  async function actOnIncident(
+  async function saveWork(
     id: string,
-    action: "ack" | "investigating" | "resolved",
-    postToSlack = false,
+    body: { assigned_to?: string | null; work_status?: "open" | "investigating" | "resolved" },
   ) {
+    if (!canEdit) return;
     setBusy(true);
     try {
-      const result = await opsApi.incidentAction(id, action, postToSlack);
-      setResolveId(null);
-      flash(
-        postToSlack && result.slack_posted === false
-          ? "Saved. Slack did not get the update."
-          : action === "ack"
-            ? "Acknowledged"
-            : action === "investigating"
-              ? "Marked investigating"
-              : "Resolved",
-      );
+      await opsApi.updateReportWork(id, body);
+      flash(body.work_status ? "Status updated" : body.assigned_to ? "Assigned" : "Assignment cleared");
       setTick((t) => t + 1);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "update_failed";
-      setError(`Could not update the incident: ${msg}`);
+      setError(`Could not update the report: ${msg}`);
     } finally {
       setBusy(false);
     }
@@ -209,22 +219,10 @@ export function DashboardView({ canEdit = false }: Props) {
   const kpi = data.kpi;
   const rows = reportsPage?.reports ?? data.reports;
   const openReport = rows.find((r) => r.id === openReportId) ?? null;
-  const openIncident = data.incidents.find((i) => i.id === openIncidentId) ?? null;
 
   return (
     <>
       {toast ? <div className="toast">{toast}</div> : null}
-      <ConfirmDialog
-        open={!!resolveId}
-        title="Resolve this incident?"
-        body="This records the time it was closed. It does not record who closed it."
-        confirmLabel="Resolve"
-        busy={busy}
-        onCancel={() => !busy && setResolveId(null)}
-        onConfirm={() => {
-          if (resolveId) void actOnIncident(resolveId, "resolved", resolveSlack);
-        }}
-      />
       <ConfirmDialog
         open={!!pending}
         title="Delete this report?"
@@ -248,9 +246,9 @@ export function DashboardView({ canEdit = false }: Props) {
           <div className="value">{fmtNum(kpi?.reports_today)}</div>
         </div>
         <div className="kpi">
-          <div className="label">Open incidents</div>
+          <div className="label">Open reports</div>
           <div className="value">{fmtNum(kpi?.open_incidents)}</div>
-          <div className="hint">One incident for each report</div>
+          <div className="hint">Not resolved yet</div>
         </div>
         <div className="kpi">
           <div className="label">MTTA (30d)</div>
@@ -264,54 +262,11 @@ export function DashboardView({ canEdit = false }: Props) {
         </div>
       </div>
 
-      <div className="grid-2">
-        <section className="panel">
-          <h2>Open incidents</h2>
-          <p className="muted" style={{ marginBottom: "0.75rem" }}>
-            Each report is an incident. The room is where it was sent from. Assign someone, then acknowledge and resolve it.
-          </p>
-          {data.incidents.length === 0 ? (
-            <p className="empty">
-              No open incidents. Each new report shows up here so you can assign it.
-            </p>
-          ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Opened</th>
-                    <th>Status</th>
-                    <th>Company</th>
-                    <th>Room</th>
-                    <th>Assignee</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.incidents.map((i) => {
-                    const room =
-                      i.room_id === "house" ? "House" : i.room_label?.trim() || "—";
-                    return (
-                      <tr key={i.id} className="row-click" onClick={() => setOpenIncidentId(i.id)}>
-                        <td>{timeAgo(i.opened_at)}</td>
-                        <td>{i.status === "investigating" ? "Investigating" : "Open"}</td>
-                        <td>{i.report_company?.trim() || "—"}</td>
-                        <td>{room}</td>
-                        <td>{i.assignee_name || "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </div>
-
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div className="panel-head">
           <div>
             <h2>Reports</h2>
-            <p className="muted">CSV export is the raw reports. Ticket notes stay in the dashboard.</p>
+            <p className="muted">Assign a person and set the status on the report. CSV export stays the raw guest data.</p>
           </div>
           <button
             type="button"
@@ -321,8 +276,24 @@ export function DashboardView({ canEdit = false }: Props) {
             Export CSV
           </button>
         </div>
+        <div className="assign-filters" role="group" aria-label="Assignment">
+          {ASSIGNMENT_FILTERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="btn"
+              aria-pressed={assignment === item.id}
+              onClick={() => {
+                setAssignment(item.id);
+                setPage(1);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
         {rows.length === 0 ? (
-          <p className="empty">No reports yet.</p>
+          <p className="empty">{assignment === "all" ? "No reports yet." : "No reports in this filter."}</p>
         ) : (
           <>
             <div className="table-wrap">
@@ -338,6 +309,8 @@ export function DashboardView({ canEdit = false }: Props) {
                     <th>Company</th>
                     <th>Who</th>
                     <th>Contact</th>
+                    <th>Status</th>
+                    <th>Assignee</th>
                     {canEdit ? <th className="col-actions" aria-label="Actions" /> : null}
                   </tr>
                 </thead>

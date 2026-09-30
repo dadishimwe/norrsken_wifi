@@ -73,6 +73,10 @@ export type ReportRow = {
   fill_ms?: number | null;
   weight: number;
   incident_id?: string | null;
+  work_status?: "open" | "investigating" | "resolved" | string | null;
+  assigned_to?: string | null;
+  assignee_name?: string | null;
+  assignee_company?: string | null;
 };
 
 export type DashboardPayload = {
@@ -94,26 +98,6 @@ export type DashboardPayload = {
     has_open_incident: boolean;
   }>;
   reports: ReportRow[];
-  incidents: Array<{
-    id: string;
-    opened_at: string;
-    acked_at?: string | null;
-    status: string;
-    scope: string;
-    zones: string[];
-    symptoms: string[];
-    apps: string[];
-    suspected_domain: string | null;
-    root_cause?: string | null;
-    report_count: string | number;
-    last_report_at?: string | null;
-    assigned_to?: string | null;
-    assignee_name?: string | null;
-    assignee_company?: string | null;
-    report_company?: string | null;
-    room_id?: string | null;
-    room_label?: string | null;
-  }>;
   assignees: Array<{ id: string; display_name: string; company: string }>;
 };
 
@@ -197,8 +181,26 @@ export const opsApi = {
       body: JSON.stringify(body),
     }),
   dashboard: () => api<DashboardPayload>("/api/ops/dashboard"),
-  reports: (page = 1, limit = 25) =>
-    api<ReportsPage>(`/api/ops/reports?page=${page}&limit=${limit}`),
+  reports: (page = 1, limit = 25, assignment: "all" | "assigned" | "unassigned" | "mine" = "all") =>
+    api<ReportsPage>(
+      `/api/ops/reports?page=${page}&limit=${limit}${assignment === "all" ? "" : `&assignment=${assignment}`}`,
+    ),
+  updateReportWork: (
+    id: string,
+    body: { assigned_to?: string | null; work_status?: "open" | "investigating" | "resolved" },
+  ) =>
+    api<{
+      report: {
+        id: string;
+        work_status: string;
+        assigned_to: string | null;
+        assignee_name: string | null;
+        assignee_company: string | null;
+      };
+    }>(`/api/ops/reports/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   deleteReport: (id: string) =>
     api<{ ok: boolean; deleted: string }>(`/api/ops/reports/${id}`, { method: "DELETE" }),
   incidentAction: (id: string, action: "ack" | "investigating" | "resolved", postToSlack = false) =>
