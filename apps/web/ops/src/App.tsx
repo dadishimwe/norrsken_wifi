@@ -109,7 +109,7 @@ export function App() {
         {tab === "users" ? (
           <UsersAdmin />
         ) : tab === "integrations" ? (
-          <IntegrationsView />
+          <IntegrationsView canEdit={user.role === "admin"} />
         ) : tab === "graphs" ? (
           <GraphsView />
         ) : (

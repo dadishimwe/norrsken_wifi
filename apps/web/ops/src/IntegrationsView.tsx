@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { opsApi, type IntegrationsPayload, type ZoneQr } from "./api";
+import { useEffect, useState, type FormEvent } from "react";
+import { opsApi, type IntegrationsPayload, type OpsZone, type ZoneQr } from "./api";
 import { SlackIcon } from "./marks";
 import { buildPrintFlyerHtml, buildScanFlyerHtml } from "./printFlyer";
 
@@ -29,13 +29,38 @@ function alertHint(error: string | null, ok: boolean): string {
   return error || "Not delivered";
 }
 
-export function IntegrationsView() {
+function roomId(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+}
+
+function zoneError(err: unknown): string {
+  const code = err instanceof Error ? err.message : "";
+  if (code === "zone_id_taken") return "A room with that name already exists.";
+  if (code === "zone_id_reserved") return "That name is reserved for the house QR.";
+  if (code === "zone_has_reports") return "This room already has reports, so it stays.";
+  if (code === "not_found") return "That room is no longer here.";
+  if (code === "zone_inactive") return "Turn the room back on before printing.";
+  return "Could not update rooms.";
+}
+
+export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
   const [qr, setQr] = useState<QrState | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [slack, setSlack] = useState<IntegrationsPayload | null>(null);
   const [slackError, setSlackError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<OpsZone[] | null>(null);
+  const [roomsError, setRoomsError] = useState<string | null>(null);
+  const [roomName, setRoomName] = useState("");
+  const [roomFloor, setRoomFloor] = useState("");
+  const [roomBusy, setRoomBusy] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<OpsZone | null>(null);
 
   function flash(msg: string) {
     setToast(msg);
@@ -47,6 +72,21 @@ export function IntegrationsView() {
       .reportQr()
       .then(setQr)
       .catch(() => setQrError("Could not load the report QR."));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    opsApi
+      .zones()
+      .then((data) => {
+        if (!cancelled) setRooms(data.zones.filter((z) => z.id !== "house"));
+      })
+      .catch(() => {
+        if (!cancelled) setRoomsError("Could not load rooms.");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -87,7 +127,6 @@ export function IntegrationsView() {
   }
 
   function printHtml(html: string) {
-    if (!qr) return;
     setPrintError(null);
     const prev = document.getElementById("norrsken-print-frame");
     prev?.remove();
@@ -146,6 +185,82 @@ export function IntegrationsView() {
     printHtml(buildScanFlyerHtml(qr, import.meta.env.BASE_URL));
   }
 
+  async function copyText(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      flash("Link copied");
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+      flash("Link copied");
+    }
+  }
+
+  async function printRoom(zone: OpsZone, kind: "scan" | "classic") {
+    setPrintError(null);
+    setRoomBusy(true);
+    try {
+      const roomQr = await opsApi.zoneQr(zone.id);
+      const html =
+        kind === "scan"
+          ? buildScanFlyerHtml(roomQr, import.meta.env.BASE_URL)
+          : buildPrintFlyerHtml(roomQr, import.meta.env.BASE_URL);
+      printHtml(html);
+    } catch (err) {
+      setPrintError(zoneError(err));
+    } finally {
+      setRoomBusy(false);
+    }
+  }
+
+  async function addRoom(event: FormEvent) {
+    event.preventDefault();
+    const label = roomName.trim();
+    const id = roomId(label);
+    if (id.length < 2) {
+      setRoomsError("Use a longer room name.");
+      return;
+    }
+    setRoomBusy(true);
+    setRoomsError(null);
+    try {
+      const created = await opsApi.createZone({
+        id,
+        label,
+        floor: roomFloor.trim() || null,
+        kind: "area",
+        sort: 200,
+      });
+      setRooms((current) => [...(current ?? []), { ...created.zone, report_count: 0 }]);
+      setRoomName("");
+      setRoomFloor("");
+      flash("Room added");
+    } catch (err) {
+      setRoomsError(zoneError(err));
+    } finally {
+      setRoomBusy(false);
+    }
+  }
+
+  async function removeRoom(zone: OpsZone) {
+    setRoomBusy(true);
+    setRoomsError(null);
+    try {
+      await opsApi.deleteZone(zone.id);
+      setRooms((current) => (current ?? []).filter((z) => z.id !== zone.id));
+      setPendingDelete(null);
+      flash("Room removed");
+    } catch (err) {
+      setRoomsError(zoneError(err));
+    } finally {
+      setRoomBusy(false);
+    }
+  }
+
   const connection = slack?.slack;
   const reports = slack?.reports;
   const connected = connection?.connected === true;
@@ -158,6 +273,7 @@ export function IntegrationsView() {
         : "Not connected";
 
   return (
+    <>
     <div className="grid-2">
       {toast ? <div className="toast">{toast}</div> : null}
       <section className="panel qr-panel">
@@ -270,5 +386,125 @@ export function IntegrationsView() {
         ) : null}
       </section>
     </div>
+    <section className="panel rooms-panel">
+      <h2>Room QRs</h2>
+      <p className="muted">
+        Same form as the house code. The room name is saved with the report.
+      </p>
+      {canEdit ? (
+        <form className="room-add" onSubmit={addRoom}>
+          <label>
+            Room name
+            <input
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              maxLength={120}
+              required
+              placeholder="Classroom 2"
+            />
+          </label>
+          <label>
+            Floor
+            <input
+              value={roomFloor}
+              onChange={(e) => setRoomFloor(e.target.value)}
+              maxLength={32}
+              placeholder="Level 3"
+            />
+          </label>
+          <button className="btn btn-primary" type="submit" disabled={roomBusy}>
+            Add room
+          </button>
+        </form>
+      ) : null}
+      {roomsError ? <p className="error">{roomsError}</p> : null}
+      {printError ? <p className="error">{printError}</p> : null}
+      {pendingDelete ? (
+        <p className="confirm-line">
+          Remove {pendingDelete.label}?
+          <button
+            className="btn"
+            type="button"
+            disabled={roomBusy}
+            onClick={() => removeRoom(pendingDelete)}
+          >
+            Remove
+          </button>
+          <button className="btn" type="button" onClick={() => setPendingDelete(null)}>
+            Cancel
+          </button>
+        </p>
+      ) : null}
+      {rooms === null ? (
+        <p className="muted">Loading rooms…</p>
+      ) : rooms.length === 0 ? (
+        <p className="muted">No rooms yet.</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="table table-dense">
+            <thead>
+              <tr>
+                <th>Room</th>
+                <th>Reports</th>
+                <th className="col-actions" aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {rooms.map((zone) => (
+                <tr key={zone.id}>
+                  <td>
+                    {zone.label}
+                    {zone.floor ? <span className="muted"> · {zone.floor}</span> : null}
+                    {zone.active ? null : <span className="muted"> · off</span>}
+                  </td>
+                  <td>{zone.report_count ?? 0}</td>
+                  <td className="room-actions">
+                    {zone.active ? (
+                      <>
+                        <button
+                          className="btn"
+                          type="button"
+                          disabled={roomBusy}
+                          onClick={() =>
+                            opsApi
+                              .zoneQr(zone.id)
+                              .then((roomQr) => copyText(roomQr.url))
+                              .catch((err) => setPrintError(zoneError(err)))
+                          }
+                        >
+                          Copy link
+                        </button>
+                        <button
+                          className="btn btn-primary"
+                          type="button"
+                          disabled={roomBusy}
+                          onClick={() => printRoom(zone, "scan")}
+                        >
+                          Print scan flyer
+                        </button>
+                        <button
+                          className="btn"
+                          type="button"
+                          disabled={roomBusy}
+                          onClick={() => printRoom(zone, "classic")}
+                        >
+                          Print classic flyer
+                        </button>
+                      </>
+                    ) : null}
+                    {canEdit && (zone.report_count ?? 0) === 0 ? (
+                      <button className="btn" type="button" onClick={() => setPendingDelete(zone)}>
+                        Remove
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+    </>
   );
 }

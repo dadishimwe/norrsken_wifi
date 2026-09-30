@@ -20,6 +20,7 @@ import {
 import {
   browserFromUserAgent,
   deviceFromUserAgent,
+  UNIVERSAL_ZONE_ID,
   createReportSchema,
   patchReportSchema,
   pickClarifiers,
@@ -124,6 +125,13 @@ export async function createReport(
   const zone = await getZone(db, input.zone_id);
   if (!zone || !zone.active) throw new HttpError(400, "unknown_zone");
 
+  const reportClarifiers: Record<string, unknown> = { ...input.clarifiers };
+  if (fromQr && zone.id !== UNIVERSAL_ZONE_ID) {
+    reportClarifiers.zone = zone.label;
+  } else {
+    delete reportClarifiers.zone;
+  }
+
   const actorHash = await computeActorHash(db, input.session_token);
 
   // Per zone / reporter: 1 per 5 min
@@ -171,7 +179,7 @@ export async function createReport(
       when_bucket: input.when_bucket,
       occurred_at: occurredAt,
       wifi_context: input.wifi_context,
-      clarifiers: input.clarifiers,
+      clarifiers: reportClarifiers,
       device_class: input.device_class,
       fill_ms: input.fill_ms ?? null,
       actor_hash: actorHash,
@@ -209,7 +217,7 @@ export async function createReport(
         input.when_bucket,
         occurredAt,
         input.wifi_context,
-        JSON.stringify(input.clarifiers),
+        JSON.stringify(reportClarifiers),
         input.device_class,
         input.fill_ms ?? null,
         actorHash,

@@ -511,6 +511,11 @@ async function run(b: Bootstrap) {
         </div>
       </div>
       <div class="field-block field-block-last">
+        ${
+          zoneId !== HOUSE_QR
+            ? `<p class="zone-fixed">Room · ${escapeHtml(b.zone.label)}</p>`
+            : ""
+        }
         <h2 class="field-title">Anything else? <span class="hint-inline">(optional)</span></h2>
         <textarea id="note" class="text-input note-input" maxlength="400" rows="3"
           placeholder="Only if the answers above don’t cover it">${escapeHtml(note)}</textarea>

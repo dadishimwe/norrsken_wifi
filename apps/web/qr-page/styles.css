@@ -676,6 +676,12 @@ body {
   line-height: 1.4;
 }
 
+.zone-fixed {
+  margin: 0 0 var(--s2);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
 .field-block-last {
   margin-bottom: 0;
 }

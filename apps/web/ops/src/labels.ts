@@ -182,8 +182,11 @@ export function formatClarifiersDisplay(clarifiers: unknown): string {
   const record = clarifierRecord(clarifiers);
   if (!record) return "";
   const parts: string[] = [];
+  const zoneName = typeof record.zone === "string" ? record.zone.trim() : "";
+  if (zoneName) parts.push(`Room: ${zoneName}`);
   for (const [key, raw] of Object.entries(record)) {
     if (raw == null || raw === "") continue;
+    if (key === "zone") continue;
     if (key === "other_app") {
       parts.push(`Other app: ${String(raw).trim()}`);
       continue;

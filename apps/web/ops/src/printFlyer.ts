@@ -27,6 +27,14 @@ function flyerHost(url: string): string {
   }
 }
 
+function roomLine(qr: PrintZoneQr): string {
+  if (qr.zone.id === "house") return "";
+  const label = qr.zone.label.trim();
+  if (!label) return "";
+  const floor = qr.zone.floor?.trim();
+  return `<p class="room">${esc(floor ? `${label} · ${floor}` : label)}</p>`;
+}
+
 export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
   const base = assetBase.endsWith("/") ? assetBase : `${assetBase}/`;
   const norrsken = `${base}norrsken-logo-dark.svg`;
@@ -73,6 +81,12 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
     font-weight: 500;
     color: ${ink};
     letter-spacing: 0.01em;
+  }
+  .room {
+    margin: 4px 0 0;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
   }
   h1 {
     text-align: center;
@@ -234,6 +248,7 @@ export function buildPrintFlyerHtml(qr: PrintZoneQr, assetBase: string): string 
   <div class="brand">
     <img class="logo-norrsken" src="${esc(norrsken)}" alt="Norrsken"/>
     <p class="house">House Kigali</p>
+    ${roomLine(qr)}
   </div>
 
   <h1>Internet not behaving?<span class="accent">Tell us in 10 seconds.</span></h1>
@@ -323,6 +338,12 @@ export function buildScanFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.04em;
+  }
+  .room {
+    margin: 4px 0 0;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
   }
   h1 {
     text-align: center;
@@ -415,6 +436,7 @@ export function buildScanFlyerHtml(qr: PrintZoneQr, assetBase: string): string {
   <div class="brand">
     <img class="logo-norrsken" src="${esc(norrsken)}" alt="Norrsken"/>
     <p class="house">House Kigali</p>
+    ${roomLine(qr)}
   </div>
   <h1><span>Internet slow</span><span>or dropping?</span></h1>
   <p class="sub">Help us fix it — scan to log an issue in 10 seconds.</p>

@@ -361,7 +361,7 @@ export function DashboardView({ canEdit = false }: Props) {
                     <th>Symptoms</th>
                     <th>Apps</th>
                     <th>Timing</th>
-                    <th title="Extra answers, including a note and the name typed for another app">
+                    <th title="Extra answers, including the room, a note, and the name typed for another app">
                       Clarifiers
                     </th>
                     <th>Company</th>
