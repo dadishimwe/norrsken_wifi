@@ -394,19 +394,16 @@ function appOption(id: (typeof APPS)[number]) {
   return { text: plain(APP_LABELS[id]), value: id };
 }
 
-/** One checkbox per app, packed into rows. A single checkbox list stacks down the modal. */
 function appCheckboxBlocks(draft: SlackDraft): KnownBlock[] {
-  const rows: (typeof APPS)[number][][] = [];
-  for (let i = 0; i < APPS.length; i += 4) rows.push(APPS.slice(i, i + 4));
   return [
     {
       type: "context",
       elements: [{ type: "mrkdwn", text: "*Which apps?* Optional. Pick up to 5." }],
     },
-    ...rows.map((ids, index) => ({
-      type: "actions" as const,
-      block_id: index === 0 ? "apps" : `apps_${index + 1}`,
-      elements: ids.map((id) => {
+    {
+      type: "actions",
+      block_id: "apps",
+      elements: APPS.map((id) => {
         const option = appOption(id);
         return {
           type: "checkboxes" as const,
@@ -415,7 +412,7 @@ function appCheckboxBlocks(draft: SlackDraft): KnownBlock[] {
           ...(draft.apps.includes(id) ? { initial_options: [option] } : {}),
         };
       }),
-    })),
+    },
   ];
 }
 

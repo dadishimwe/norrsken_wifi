@@ -42,9 +42,9 @@ function many(values: Values, block: string, action: string): string[] {
 }
 
 function pickedAppIds(values: Values): AppId[] {
-  const blocks = [values.apps, values.apps_2, values.apps_3];
+  const block = values.apps;
   return APPS.filter((id) =>
-    blocks.some((block) => (block?.[id]?.selected_options ?? []).some((option) => option.value === id)),
+    (block?.[id]?.selected_options ?? []).some((option) => option.value === id),
   );
 }
 
