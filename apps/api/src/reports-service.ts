@@ -20,6 +20,7 @@ import {
 import {
   browserFromUserAgent,
   deviceFromUserAgent,
+  SYMPTOM_LABELS,
   UNIVERSAL_ZONE_ID,
   createReportSchema,
   patchReportSchema,
@@ -247,12 +248,15 @@ export async function createReport(
 
   await upsertSession(db, actorHash, input.zone_id, input.wifi_context);
   try {
+    const symptomId = input.symptoms[0];
     const posted = await postReportAlert(
       env,
       {
         company: input.company,
         contactOk: input.contact_ok,
         contactName: input.contact_ok ? input.contact_name : null,
+        place: zone.id === UNIVERSAL_ZONE_ID ? "House" : zone.label,
+        symptom: symptomId ? (SYMPTOM_LABELS[symptomId] ?? symptomId) : null,
       },
       alertWorkspace,
     );

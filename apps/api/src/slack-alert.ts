@@ -7,12 +7,15 @@ export function reportAlertText(input: {
   company?: string | null;
   contactOk?: boolean;
   contactName?: string | null;
+  place?: string | null;
+  symptom?: string | null;
 }): string {
   const name = input.contactOk ? input.contactName?.trim() : "";
   const company = input.company?.trim() ?? "";
   const who = name || "Anonymous person";
-  if (company) return `${who} from ${company} just reported an issue.`;
-  return `${who} just reported an issue.`;
+  const line = company ? `${who} from ${company} just reported an issue.` : `${who} just reported an issue.`;
+  const detail = [input.place?.trim(), input.symptom?.trim()].filter(Boolean).join(" · ");
+  return detail ? `${line} ${detail}.` : line;
 }
 
 type SlackOk = { ok?: boolean; error?: string; ts?: string; channel?: string };
@@ -39,20 +42,36 @@ async function postOne(
 ): Promise<{ channel: string; ts: string } | null> {
   const channel = space.alertsChannel;
   if (!channel) return null;
-  const data = await slackPost(space.botToken, { channel, text });
-  if (!data.ok || !data.ts) {
-    const error = data.error || "post_failed";
+  try {
+    let data = await slackPost(space.botToken, { channel, text: `<!here> ${text}` });
+    if (!data.ok && data.error === "restricted_action") {
+      data = await slackPost(space.botToken, { channel, text });
+    }
+    if (!data.ok || !data.ts) {
+      const error = data.error || "post_failed";
+      markAlertResult(space.id, false, error);
+      console.error("slack alert", space.id, error);
+      return null;
+    }
+    markAlertResult(space.id, true, null);
+    return { channel: data.channel || channel, ts: data.ts };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : "post_failed";
     markAlertResult(space.id, false, error);
     console.error("slack alert", space.id, error);
     return null;
   }
-  markAlertResult(space.id, true, null);
-  return { channel: data.channel || channel, ts: data.ts };
 }
 
 export async function postReportAlert(
   env: Env,
-  input: { company?: string | null; contactOk?: boolean; contactName?: string | null },
+  input: {
+    company?: string | null;
+    contactOk?: boolean;
+    contactName?: string | null;
+    place?: string | null;
+    symptom?: string | null;
+  },
   workspaceId?: SlackWorkspaceId,
 ): Promise<{ channel: string; ts: string } | null> {
   const text = reportAlertText(input);
