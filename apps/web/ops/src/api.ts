@@ -73,7 +73,10 @@ export type ReportRow = {
   fill_ms?: number | null;
   weight: number;
   incident_id?: string | null;
-  work_status?: "open" | "investigating" | "resolved" | string | null;
+  work_status?: "new" | "in_progress" | "waiting_vendor" | "resolved" | string | null;
+  priority?: "normal" | "high" | "urgent" | string | null;
+  ticket_no?: number | null;
+  resolved_at?: string | null;
   assigned_to?: string | null;
   assignee_name?: string | null;
   assignee_company?: string | null;
@@ -116,6 +119,7 @@ export type ReportsPage = {
   total: number;
   total_pages: number;
   reports: ReportRow[];
+  companies?: string[];
 };
 
 export type AnalyticsPayload = {
@@ -181,18 +185,36 @@ export const opsApi = {
       body: JSON.stringify(body),
     }),
   dashboard: () => api<DashboardPayload>("/api/ops/dashboard"),
-  reports: (page = 1, limit = 25, assignment: "all" | "assigned" | "unassigned" | "mine" = "all") =>
-    api<ReportsPage>(
-      `/api/ops/reports?page=${page}&limit=${limit}${assignment === "all" ? "" : `&assignment=${assignment}`}`,
-    ),
+  reports: (
+    page = 1,
+    limit = 25,
+    opts?: {
+      assignment?: "all" | "assigned" | "unassigned" | "mine";
+      zoneId?: string;
+      company?: string;
+      active?: boolean;
+    },
+  ) => {
+    const sp = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (opts?.assignment && opts.assignment !== "all") sp.set("assignment", opts.assignment);
+    if (opts?.zoneId) sp.set("zone_id", opts.zoneId);
+    if (opts?.company) sp.set("company", opts.company);
+    if (opts?.active === false) sp.set("active", "0");
+    return api<ReportsPage>(`/api/ops/reports?${sp}`);
+  },
   updateReportWork: (
     id: string,
-    body: { assigned_to?: string | null; work_status?: "open" | "investigating" | "resolved" },
+    body: {
+      assigned_to?: string | null;
+      work_status?: "new" | "in_progress" | "waiting_vendor" | "resolved";
+      priority?: "normal" | "high" | "urgent";
+    },
   ) =>
     api<{
       report: {
         id: string;
         work_status: string;
+        priority?: string;
         assigned_to: string | null;
         assignee_name: string | null;
         assignee_company: string | null;
@@ -200,6 +222,22 @@ export const opsApi = {
     }>(`/api/ops/reports/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
+    }),
+  bulkReports: (body: {
+    ids: string[];
+    assigned_to?: string | null;
+    work_status?: "new" | "in_progress" | "waiting_vendor" | "resolved";
+  }) =>
+    api<{ reports: { id: string }[] }>("/api/ops/reports/bulk", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  reportNotes: (id: string) =>
+    api<{ notes: IncidentComment[] }>(`/api/ops/reports/${id}/notes`),
+  addReportNote: (id: string, body: string, postToSlack: boolean) =>
+    api<{ note: IncidentComment; slack_posted: boolean }>(`/api/ops/reports/${id}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ body, post_to_slack: postToSlack }),
     }),
   deleteReport: (id: string) =>
     api<{ ok: boolean; deleted: string }>(`/api/ops/reports/${id}`, { method: "DELETE" }),

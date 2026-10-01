@@ -175,9 +175,23 @@ function publicUser(user: OpsUser) {
 
 const COMPANIES = ["norrsken", "zuba", "dct"] as const;
 
+const WORK_STATUSES = ["new", "in_progress", "waiting_vendor", "resolved"] as const;
+const PRIORITIES = ["normal", "high", "urgent"] as const;
+
+function canTriage(user: OpsUser) {
+  return user.role === "super_admin" || (user.role === "admin" && user.company === "dct");
+}
+
+function requireTriage(user: OpsUser) {
+  if (!canTriage(user)) throw new HttpError(403, "forbidden");
+}
+
 const reportWorkSelect = `
   select v.*,
     r.work_status,
+    r.priority,
+    r.ticket_no,
+    r.resolved_at,
     r.assigned_to,
     u.display_name as assignee_name,
     u.company as assignee_company
@@ -185,6 +199,29 @@ const reportWorkSelect = `
   join report r on r.id = v.id
   left join ops_user u on u.id = r.assigned_to
 `;
+
+const activeReportSql = `not (
+  r.work_status = 'resolved'
+  and coalesce(r.resolved_at, r.created_at) < now() - interval '24 hours'
+)`;
+
+function hideAssignment<
+  T extends {
+    assigned_to?: unknown;
+    assignee_name?: unknown;
+    assignee_company?: unknown;
+    priority?: unknown;
+  },
+>(rows: T[], triage: boolean) {
+  if (triage) return rows;
+  return rows.map((row) => ({
+    ...row,
+    assigned_to: null,
+    assignee_name: null,
+    assignee_company: null,
+    priority: null,
+  }));
+}
 
 async function incidentThread(
   db: Pool,
@@ -333,8 +370,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
 
   app.get("/api/ops/users", async (req, reply) => {
     try {
-      const me = await requireOps(req, reply, db);
-      requireStaff(me);
+      await requireOps(req, reply, db);
       const users = await listOpsUsers(db);
       return { users };
     } catch (err) {
@@ -435,13 +471,15 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         db.query(`select * from v_zone_health`),
         db.query(`
           ${reportWorkSelect}
+          where ${activeReportSql}
           order by v.created_at desc
           limit 50
         `),
         db.query(`
           select id, display_name, company
           from ops_user
-          where active = true and role in ('super_admin', 'admin')
+          where active = true
+            and (role = 'super_admin' or (role = 'admin' and company = 'dct'))
           order by display_name
         `),
       ]);
@@ -449,8 +487,8 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       return {
         kpi: kpi.rows[0] ?? null,
         zones: zones.rows,
-        reports: reports.rows,
-        assignees: me.role === "viewer" ? [] : assignees.rows,
+        reports: hideAssignment(reports.rows, canTriage(me)),
+        assignees: canTriage(me) ? assignees.rows : [],
       };
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
@@ -847,30 +885,47 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.get("/api/ops/reports", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
-      const q = req.query as { page?: string; limit?: string; assignment?: string };
+      const q = req.query as {
+        page?: string;
+        limit?: string;
+        assignment?: string;
+        zone_id?: string;
+        company?: string;
+        active?: string;
+      };
       const page = Math.max(1, Number(q.page) || 1);
-      const limit = Math.min(100, Math.max(1, Number(q.limit) || 25));
+      const limit = Math.min(200, Math.max(1, Number(q.limit) || 25));
       const offset = (page - 1) * limit;
-      const assignment = q.assignment;
+      const triage = canTriage(me);
       const where: string[] = [];
       const params: unknown[] = [];
-      if (assignment === "mine") {
+      if (q.active !== "0") where.push(activeReportSql);
+      if (q.assignment === "mine" && triage) {
         params.push(me.id);
         where.push(`r.assigned_to = $${params.length}`);
-      } else if (assignment === "assigned") {
+      } else if (q.assignment === "assigned" && triage) {
         where.push(`r.assigned_to is not null`);
-      } else if (assignment === "unassigned") {
+      } else if (q.assignment === "unassigned" && triage) {
         where.push(`r.assigned_to is null`);
       }
+      if (q.zone_id && /^[a-z0-9-]+$/.test(q.zone_id)) {
+        params.push(q.zone_id);
+        where.push(`r.zone_id = $${params.length}`);
+      }
+      if (q.company?.trim()) {
+        params.push(q.company.trim());
+        where.push(`r.company = $${params.length}`);
+      }
       const whereSql = where.length ? `where ${where.join(" and ")}` : "";
+      const filterParams = params.slice();
       params.push(limit, offset);
       const limitParam = params.length - 1;
       const offsetParam = params.length;
 
-      const [countRes, rowsRes] = await Promise.all([
+      const [countRes, rowsRes, companyRes] = await Promise.all([
         db.query<{ n: string }>(
           `select count(*)::text as n from report r ${whereSql}`,
-          params.slice(0, where.length ? params.length - 2 : 0),
+          filterParams,
         ),
         db.query(
           `
@@ -881,6 +936,15 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
           `,
           params,
         ),
+        db.query<{ company: string }>(
+          `
+          select distinct trim(company) as company
+          from report
+          where company is not null and trim(company) <> ''
+          order by 1
+          limit 80
+          `,
+        ),
       ]);
       const total = Number(countRes.rows[0]?.n ?? 0);
       return {
@@ -888,8 +952,150 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         limit,
         total,
         total_pages: Math.max(1, Math.ceil(total / limit)),
-        reports: rowsRes.rows,
+        reports: hideAssignment(rowsRes.rows, triage),
+        companies: companyRes.rows.map((row) => row.company),
       };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  const workPatch = z.object({
+    assigned_to: z.string().uuid().nullable().optional(),
+    work_status: z.enum(WORK_STATUSES).optional(),
+    priority: z.enum(PRIORITIES).optional(),
+  });
+
+  async function applyWorkPatch(
+    id: string,
+    body: z.infer<typeof workPatch>,
+  ): Promise<{ id: string; work_status: string; assigned_to: string | null; priority: string } | null> {
+    let assignee: OpsUser | null = null;
+    if (body.assigned_to) {
+      assignee = await getOpsUserById(db, body.assigned_to);
+      if (!assignee || !assignee.active || !canTriage(assignee)) {
+        throw new HttpError(400, "bad_assignee");
+      }
+    }
+    const setAssignee = body.assigned_to !== undefined;
+    const { rows } = await db.query(
+      `
+      update report
+      set
+        assigned_to = case when $3::boolean then $2::uuid else assigned_to end,
+        work_status = coalesce($4, work_status),
+        priority = coalesce($5, priority),
+        acked_at = case
+          when $4 in ('in_progress', 'waiting_vendor', 'resolved') then coalesce(acked_at, now())
+          else acked_at
+        end,
+        resolved_at = case
+          when $4 = 'resolved' then coalesce(resolved_at, now())
+          when $4 in ('new', 'in_progress', 'waiting_vendor') then null
+          else resolved_at
+        end
+      where id = $1
+      returning id, work_status, assigned_to, priority
+      `,
+      [id, body.assigned_to ?? null, setAssignee, body.work_status ?? null, body.priority ?? null],
+    );
+    return rows[0] ?? null;
+  }
+
+  app.post("/api/ops/reports/bulk", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireTriage(me);
+      const parsed = workPatch
+        .extend({ ids: z.array(z.string().uuid()).min(1).max(50) })
+        .safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "invalid_body" });
+      if (
+        parsed.data.assigned_to === undefined &&
+        !parsed.data.work_status &&
+        !parsed.data.priority
+      ) {
+        return reply.code(400).send({ error: "invalid_body" });
+      }
+      const saved = [];
+      for (const id of parsed.data.ids) {
+        const row = await applyWorkPatch(id, parsed.data);
+        if (row) saved.push(row);
+      }
+      return { reports: saved };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.get("/api/ops/reports/:id/notes", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireTriage(me);
+      const { id } = req.params as { id: string };
+      const { rows } = await db.query(
+        `
+        select n.id, n.body, n.created_at, n.posted_to_slack,
+          u.display_name as author_name, u.company as author_company
+        from report_note n
+        left join ops_user u on u.id = n.author_id
+        where n.report_id = $1
+        order by n.created_at
+        `,
+        [id],
+      );
+      return { notes: rows };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
+  app.post("/api/ops/reports/:id/notes", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      requireTriage(me);
+      const { id } = req.params as { id: string };
+      const parsed = z
+        .object({
+          body: z.string().trim().min(1).max(2000),
+          post_to_slack: z.boolean().optional(),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "invalid_body" });
+      const report = await db.query<{
+        company: string | null;
+        alert_channel: string | null;
+        alert_ts: string | null;
+      }>(`select company, alert_channel, alert_ts from report where id = $1`, [id]);
+      if (!report.rows[0]) return reply.code(404).send({ error: "not_found" });
+      let posted = false;
+      if (parsed.data.post_to_slack) {
+        const row = report.rows[0];
+        posted = await postAlertsThread(env, {
+          text: `Note · ${row.company?.trim() || "Report"}: ${parsed.data.body}`,
+          channel: row.alert_channel,
+          threadTs: row.alert_ts,
+        });
+      }
+      const { rows } = await db.query(
+        `
+        insert into report_note (report_id, author_id, body, posted_to_slack)
+        values ($1, $2, $3, $4)
+        returning id, body, created_at, posted_to_slack
+        `,
+        [id, me.id, parsed.data.body, posted],
+      );
+      return reply.code(201).send({
+        note: {
+          ...rows[0],
+          author_name: me.display_name,
+          author_company: me.company,
+        },
+        slack_posted: posted,
+      });
     } catch (err) {
       if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
       throw err;
@@ -899,47 +1105,22 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.patch("/api/ops/reports/:id", async (req, reply) => {
     try {
       const me = await requireOps(req, reply, db);
-      requireStaff(me);
+      requireTriage(me);
       const { id } = req.params as { id: string };
-      const parsed = z
-        .object({
-          assigned_to: z.string().uuid().nullable().optional(),
-          work_status: z.enum(["open", "investigating", "resolved"]).optional(),
-        })
-        .safeParse(req.body);
+      const parsed = workPatch.safeParse(req.body);
       if (!parsed.success) return reply.code(400).send({ error: "invalid_body" });
-      if (parsed.data.assigned_to === undefined && !parsed.data.work_status) {
+      if (
+        parsed.data.assigned_to === undefined &&
+        !parsed.data.work_status &&
+        !parsed.data.priority
+      ) {
         return reply.code(400).send({ error: "invalid_body" });
       }
       let assignee: OpsUser | null = null;
       if (parsed.data.assigned_to) {
         assignee = await getOpsUserById(db, parsed.data.assigned_to);
-        if (!assignee || !assignee.active || assignee.role === "viewer") {
-          return reply.code(400).send({ error: "bad_assignee" });
-        }
       }
-      const setAssignee = parsed.data.assigned_to !== undefined;
-      const { rows } = await db.query(
-        `
-        update report
-        set
-          assigned_to = case when $3::boolean then $2::uuid else assigned_to end,
-          work_status = coalesce($4, work_status),
-          acked_at = case
-            when $4 in ('investigating', 'resolved') then coalesce(acked_at, now())
-            else acked_at
-          end,
-          resolved_at = case
-            when $4 = 'resolved' then coalesce(resolved_at, now())
-            when $4 in ('open', 'investigating') then null
-            else resolved_at
-          end
-        where id = $1
-        returning id, work_status, assigned_to
-        `,
-        [id, parsed.data.assigned_to ?? null, setAssignee, parsed.data.work_status ?? null],
-      );
-      const saved = rows[0];
+      const saved = await applyWorkPatch(id, parsed.data);
       if (!saved) return reply.code(404).send({ error: "not_found" });
       if (saved.assigned_to && saved.assigned_to !== parsed.data.assigned_to) {
         assignee = await getOpsUserById(db, saved.assigned_to);
@@ -948,6 +1129,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         report: {
           id: saved.id,
           work_status: saved.work_status,
+          priority: saved.priority,
           assigned_to: saved.assigned_to,
           assignee_name: assignee?.display_name ?? null,
           assignee_company: assignee?.company ?? null,

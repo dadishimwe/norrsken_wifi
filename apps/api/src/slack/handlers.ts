@@ -205,7 +205,7 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     const incidentId = "value" in action ? action.value : "";
     if (!triggerId || !incidentId) return;
     const { rows } = await db.query<{ symptoms: string[] }>(
-      `select symptoms from report where id = $1 and work_status in ('open','investigating')`,
+      `select symptoms from report where id = $1 and work_status <> 'resolved'`,
       [incidentId],
     );
     const incident = rows[0];
@@ -348,7 +348,7 @@ async function openIncidentLabels(db: Pool): Promise<{ id: string; label: string
     `
     select id, company, symptoms[1] as symptom
     from report
-    where work_status in ('open', 'investigating')
+    where work_status <> 'resolved'
     order by created_at desc
     limit 3
     `,

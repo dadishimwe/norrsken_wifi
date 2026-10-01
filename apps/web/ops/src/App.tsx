@@ -2,9 +2,12 @@ import { Component, useEffect, useState, type ReactNode } from "react";
 import { opsApi, type OpsUser } from "./api";
 import { LoginPage } from "./LoginPage";
 import { DashboardView } from "./DashboardView";
+import { IssuesView } from "./IssuesView";
+import { BoardView } from "./BoardView";
 import { UsersAdmin } from "./UsersAdmin";
 import { IntegrationsView } from "./IntegrationsView";
 import { GraphsView } from "./GraphsView";
+import { canTriage } from "./issueControls";
 import { AccountDialog } from "./AccountDialog";
 import { BrandLogo, ThemeToggle } from "./BrandLogo";
 import { useTheme } from "./theme";
@@ -19,7 +22,7 @@ function roleLabel(role: string): string {
   return "Viewer";
 }
 
-type Tab = "dashboard" | "graphs" | "integrations" | "users";
+type Tab = "dashboard" | "issues" | "board" | "graphs" | "integrations" | "users";
 
 class PageBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
   override state = { message: null as string | null };
@@ -102,9 +105,10 @@ export function App() {
         {(
           [
             ["dashboard", "Dashboard"],
+            ...(canTriage(user) ? ([["issues", "Issues"], ["board", "Board"]] as const) : []),
             ["graphs", "Graphs"],
             ["integrations", "Integrations"],
-            ...(staffRole(user.role) ? [["users", "Users"] as const] : []),
+            ["users", "Users"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -140,8 +144,12 @@ export function App() {
             <IntegrationsView canEdit={staffRole(user.role)} />
           ) : tab === "graphs" ? (
             <GraphsView />
+          ) : tab === "issues" && canTriage(user) ? (
+            <IssuesView meId={user.id} />
+          ) : tab === "board" && canTriage(user) ? (
+            <BoardView meId={user.id} />
           ) : (
-            <DashboardView canEdit={staffRole(user.role)} meId={user.id} />
+            <DashboardView canEdit={staffRole(user.role)} canTriage={canTriage(user)} meId={user.id} />
           )}
         </PageBoundary>
       </main>

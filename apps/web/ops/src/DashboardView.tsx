@@ -2,30 +2,25 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { downloadCsv, opsApi, type DashboardPayload, type ReportsPage } from "./api";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ReportDrawer } from "./drawers";
 import {
-  labelAppEntry,
-  labelSymptom,
-  labelUserType,
-  labelWhen,
-} from "./labels";
+  AssigneePicker,
+  ReporterCell,
+  StatusBadge,
+  StatusPicker,
+  textList,
+  textOf,
+  timeAgo,
+  type WorkStatus,
+} from "./issueControls";
+import { labelAppEntry, labelSymptom, labelWhen } from "./labels";
 import { AppLabel, ChannelLabel } from "./marks";
-import { companyLabel, ReportDrawer } from "./drawers";
 
 function fmtNum(v: string | number | null | undefined, digits = 0): string {
   if (v === null || v === undefined || v === "") return "—";
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isFinite(n)) return "—";
   return n.toFixed(digits);
-}
-
-function timeAgo(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
 }
 
 function RowMenu({ onDelete }: { onDelete: () => void }) {
@@ -114,54 +109,14 @@ function RowMenu({ onDelete }: { onDelete: () => void }) {
   );
 }
 
-type Props = { canEdit?: boolean; meId: string };
-
-type AssignmentFilter = "all" | "unassigned" | "assigned" | "mine";
-
-const ASSIGNMENT_FILTERS: { id: AssignmentFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "unassigned", label: "Unassigned" },
-  { id: "assigned", label: "Assigned" },
-  { id: "mine", label: "Assigned to me" },
-];
-
-function textList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
-  if (typeof value !== "string") return [];
-  const trimmed = value.trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-    return trimmed
-      .slice(1, -1)
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-  return trimmed ? [trimmed] : [];
-}
-
-function textOf(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function statusName(status: string | null | undefined): string {
-  if (status === "investigating") return "Investigating";
-  if (status === "resolved") return "Resolved";
-  return "Open";
-}
-
-function statusClass(status: string | null | undefined): string {
-  if (status === "investigating") return "status-mark investigating";
-  if (status === "resolved") return "status-mark resolved";
-  return "status-mark open";
-}
+type Props = { canEdit?: boolean; canTriage?: boolean; meId: string };
 
 type PendingDelete = { id: string; zoneLabel: string; when: string };
 
-export function DashboardView({ canEdit = false, meId }: Props) {
+export function DashboardView({ canEdit = false, canTriage = false, meId }: Props) {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [reportsPage, setReportsPage] = useState<ReportsPage | null>(null);
   const [page, setPage] = useState(1);
-  const [assignment, setAssignment] = useState<AssignmentFilter>("all");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
@@ -178,7 +133,7 @@ export function DashboardView({ canEdit = false, meId }: Props) {
     let cancelled = false;
     async function load() {
       try {
-        const [d, r] = await Promise.all([opsApi.dashboard(), opsApi.reports(page, 25, assignment)]);
+        const [d, r] = await Promise.all([opsApi.dashboard(), opsApi.reports(page, 25)]);
         if (!cancelled) {
           setData(d);
           setReportsPage(r);
@@ -194,7 +149,7 @@ export function DashboardView({ canEdit = false, meId }: Props) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [page, tick, assignment]);
+  }, [page, tick]);
 
   async function confirmDelete() {
     if (!pending || !canEdit) return;
@@ -215,9 +170,9 @@ export function DashboardView({ canEdit = false, meId }: Props) {
 
   async function saveWork(
     id: string,
-    body: { assigned_to?: string | null; work_status?: "open" | "investigating" | "resolved" },
+    body: { assigned_to?: string | null; work_status?: WorkStatus },
   ) {
-    if (!canEdit) return;
+    if (!canTriage) return;
     setBusy(true);
     try {
       await opsApi.updateReportWork(id, body);
@@ -289,7 +244,7 @@ export function DashboardView({ canEdit = false, meId }: Props) {
         <div className="panel-head">
           <div>
             <h2>Reports</h2>
-            <p className="muted">Assign a person and set the status on the report. CSV export stays the raw guest data.</p>
+            <p className="muted">Recent reports. Device details open in the side panel. CSV export stays the raw guest data.</p>
           </div>
           <button
             type="button"
@@ -299,24 +254,8 @@ export function DashboardView({ canEdit = false, meId }: Props) {
             Export CSV
           </button>
         </div>
-        <div className="assign-filters" role="group" aria-label="Assignment">
-          {ASSIGNMENT_FILTERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="btn"
-              aria-pressed={assignment === item.id}
-              onClick={() => {
-                setAssignment(item.id);
-                setPage(1);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
         {rows.length === 0 ? (
-          <p className="empty">{assignment === "all" ? "No reports yet." : "No reports in this filter."}</p>
+          <p className="empty">No active reports.</p>
         ) : (
           <>
             <div className="table-wrap">
@@ -325,15 +264,12 @@ export function DashboardView({ canEdit = false, meId }: Props) {
                   <tr>
                     <th>When</th>
                     <th>Source</th>
+                    <th>Reporter / Location</th>
                     <th>Symptoms</th>
                     <th>Apps</th>
                     <th>Timing</th>
-                    <th>Room</th>
-                    <th>Company</th>
-                    <th>Who</th>
-                    <th>Contact</th>
                     <th>Status</th>
-                    <th>Assignee</th>
+                    {canTriage ? <th>Assigned to</th> : null}
                     {canEdit ? <th className="col-actions" aria-label="Actions" /> : null}
                   </tr>
                 </thead>
@@ -341,11 +277,6 @@ export function DashboardView({ canEdit = false, meId }: Props) {
                   {rows.map((r) => {
                     const symptoms = textList(r.symptoms);
                     const apps = textList(r.apps);
-                    const company = textOf(r.company);
-                    const contactName = textOf(r.contact_name);
-                    const contactPhone = textOf(r.contact_phone);
-                    const contactEmail = textOf(r.contact_email);
-                    const otherWho = textOf(r.user_type_other);
                     return (
                     <tr
                       key={r.id}
@@ -355,6 +286,9 @@ export function DashboardView({ canEdit = false, meId }: Props) {
                       <td title={r.created_at}>{timeAgo(r.created_at)}</td>
                       <td>
                         <ChannelLabel channel={r.channel} />
+                      </td>
+                      <td>
+                        <ReporterCell report={r} />
                       </td>
                       <td>
                         {symptoms.map((s) => (
@@ -373,84 +307,37 @@ export function DashboardView({ canEdit = false, meId }: Props) {
                           : "—"}
                       </td>
                       <td>{labelWhen(r.when_bucket, r.occurred_at)}</td>
-                      <td>{r.zone_id === "house" ? "House" : r.zone_label || "—"}</td>
-                      <td>{company || "—"}</td>
-                      <td>
-                        {r.user_type
-                          ? r.user_type === "other" && otherWho
-                            ? `${labelUserType(r.user_type)} · ${otherWho}`
-                            : labelUserType(r.user_type)
-                          : "—"}
-                      </td>
-                      <td>
-                        {r.contact_ok ? (
-                          <div className="contact-cell">
-                            <div>{contactName || "Name not given"}</div>
-                            {contactPhone || contactEmail ? (
-                              <div className="muted contact-meta">
-                                {[contactPhone, contactEmail].filter(Boolean).join(" · ")}
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        {canEdit ? (
-                          <label className={statusClass(r.work_status)}>
-                            <span className="sr-only">Status</span>
-                            <select
-                              className="row-select"
-                              aria-label="Status"
-                              value={r.work_status === "investigating" || r.work_status === "resolved" ? r.work_status : "open"}
-                              disabled={busy}
-                              onChange={(e) =>
-                                void saveWork(r.id, {
-                                  work_status: e.target.value as "open" | "investigating" | "resolved",
-                                })
-                              }
-                            >
-                              <option value="open">Open</option>
-                              <option value="investigating">Investigating</option>
-                              <option value="resolved">Resolved</option>
-                            </select>
-                          </label>
-                        ) : (
-                          <span className={statusClass(r.work_status)}>{statusName(r.work_status)}</span>
-                        )}
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        {canEdit ? (
-                          <select
-                            className="row-select"
-                            aria-label="Assignee"
-                            value={r.assigned_to ?? ""}
+                        {canTriage ? (
+                          <StatusPicker
+                            status={r.work_status}
                             disabled={busy}
-                            onChange={(e) => void saveWork(r.id, { assigned_to: e.target.value || null })}
-                          >
-                            <option value="">Unassigned</option>
-                            {assignees.map((person) => (
-                              <option key={person.id} value={person.id}>
-                                {person.id === meId ? "You" : person.display_name} · {companyLabel(person.company)}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(work_status) => void saveWork(r.id, { work_status })}
+                          />
                         ) : (
-                          <span>
-                            {r.assigned_to === meId
-                              ? "You"
-                              : r.assignee_name || "Unassigned"}
-                          </span>
+                          <StatusBadge status={r.work_status} />
                         )}
                       </td>
+                      {canTriage ? (
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <AssigneePicker
+                            assignedTo={r.assigned_to}
+                            assigneeName={r.assignee_name}
+                            assigneeCompany={r.assignee_company}
+                            assignees={assignees}
+                            meId={meId}
+                            disabled={busy}
+                            onChange={(assigned_to) => void saveWork(r.id, { assigned_to })}
+                          />
+                        </td>
+                      ) : null}
                       {canEdit ? (
                         <td className="col-actions" onClick={(e) => e.stopPropagation()}>
                           <RowMenu
                             onDelete={() =>
                               setPending({
                                 id: r.id,
-                                zoneLabel: company || "this report",
+                                zoneLabel: textOf(r.company) || "this report",
                                 when: timeAgo(r.created_at),
                               })
                             }
@@ -489,7 +376,16 @@ export function DashboardView({ canEdit = false, meId }: Props) {
           </>
         )}
       </section>
-      {openReport ? <ReportDrawer report={openReport} onClose={() => setOpenReportId(null)} /> : null}
+      {openReport ? (
+        <ReportDrawer
+          report={openReport}
+          canTriage={canTriage}
+          assignees={assignees}
+          meId={meId}
+          onClose={() => setOpenReportId(null)}
+          onChanged={() => setTick((t) => t + 1)}
+        />
+      ) : null}
     </>
   );
 }

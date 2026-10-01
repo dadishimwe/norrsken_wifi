@@ -11,8 +11,8 @@ const COMPANY_OPTIONS = [
 ] as const;
 
 const ROLE_OPTIONS = [
-  { value: "viewer", label: "Viewer — dashboard only" },
-  { value: "admin", label: "Admin — incidents and viewers" },
+  { value: "viewer", label: "Viewer — read only" },
+  { value: "admin", label: "Admin" },
   { value: "super_admin", label: "Super admin — manage admins" },
 ] as const;
 
@@ -59,7 +59,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
   }
 
   useEffect(() => {
-    reload().catch(() => setError("Could not load users (admin only)."));
+    reload().catch(() => setError("Could not load users."));
   }, []);
 
   useEffect(() => {
@@ -175,8 +175,10 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
     }
   }
 
+  const staff = me.role === "admin" || me.role === "super_admin";
+
   return (
-    <div className="grid-2">
+    <div className={staff ? "grid-2" : ""}>
       {toast ? <div className="toast">{toast}</div> : null}
       {resetUser ? (
         <div
@@ -265,6 +267,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
           </form>
         </div>
       ) : null}
+      {staff ? (
       <section className="panel">
         <h2>Create account</h2>
         <p className="muted" style={{ marginBottom: "1rem" }}>
@@ -337,6 +340,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
           </button>
         </form>
       </section>
+      ) : null}
 
       <section className="panel">
         <h2>Team accounts</h2>
@@ -363,7 +367,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
                 <td>{u.active === false ? "disabled" : "active"}</td>
                 <td>{formatLastLogin(u.last_login_at)}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  {me.role === "super_admin" || u.role === "viewer" ? (
+                  {staff && (me.role === "super_admin" || u.role === "viewer") ? (
                     <>
                       <button className="btn btn-ghost" type="button" onClick={() => openReset(u)}>
                         Edit
