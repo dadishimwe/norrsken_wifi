@@ -282,6 +282,31 @@ a {
   font-size: 1rem;
 }
 
+.integrations-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  grid-template-areas:
+    "qr slack"
+    "rooms slack";
+  gap: 1rem;
+  align-items: start;
+}
+
+.integrations-layout .qr-panel {
+  grid-area: qr;
+}
+
+.integrations-layout .slack-panel {
+  grid-area: slack;
+}
+
+.integrations-layout .rooms-panel {
+  grid-area: rooms;
+  margin-top: 0;
+  width: auto;
+  max-width: 100%;
+}
+
 .grid-2 {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -289,6 +314,14 @@ a {
 }
 
 @media (max-width: 1000px) {
+  .integrations-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "qr"
+      "slack"
+      "rooms";
+  }
+
   .grid-2 {
     grid-template-columns: 1fr;
   }

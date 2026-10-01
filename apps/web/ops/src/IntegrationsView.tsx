@@ -271,8 +271,8 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
 
   return (
     <>
-    <div className="grid-2">
-      {toast ? <div className="toast">{toast}</div> : null}
+    {toast ? <div className="toast">{toast}</div> : null}
+    <div className="integrations-layout">
       <section className="panel qr-panel">
         <h2>Report QR</h2>
         {qr ? (
@@ -314,7 +314,7 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel slack-panel">
         <h2 className="with-mark">
           <SlackIcon /> Slack
         </h2>
@@ -393,7 +393,6 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
           </div>
         </div>
       </section>
-    </div>
     <section className="panel rooms-panel">
       <h2>Room QRs</h2>
       <p className="muted">
@@ -521,6 +520,7 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
         </p>
       ) : null}
     </section>
+    </div>
     </>
   );
 }
