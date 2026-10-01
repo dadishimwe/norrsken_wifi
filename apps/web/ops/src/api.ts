@@ -19,18 +19,23 @@ export type OpsZone = {
   report_count?: number;
 };
 
+export type SlackWorkspaceStatus = {
+  id: string;
+  label: string;
+  configured: boolean;
+  mode: "off" | "socket" | "http";
+  connected: boolean;
+  error: string | null;
+  connected_at: string | null;
+  team_name: string | null;
+  bot_name: string | null;
+  alerts_channel: string | null;
+  last_alert: { at: string; ok: boolean; error: string | null } | null;
+};
+
 export type IntegrationsPayload = {
-  slack: {
-    configured: boolean;
-    mode: "off" | "socket" | "http";
-    connected: boolean;
-    error: string | null;
-    connected_at: string | null;
-    team_name: string | null;
-    bot_name: string | null;
-    alerts_channel: string | null;
-    last_alert: { at: string; ok: boolean; error: string | null } | null;
-  };
+  workspaces?: SlackWorkspaceStatus[];
+  slack: SlackWorkspaceStatus;
   reports: {
     slack_24h: number;
     metoo_24h: number;

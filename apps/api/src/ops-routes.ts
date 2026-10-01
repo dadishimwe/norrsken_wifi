@@ -36,6 +36,7 @@ import { HttpError } from "./reports-service.js";
 import { buildZoneQr } from "./qr-service.js";
 import { postAlertsThread } from "./slack-alert.js";
 import { slackLiveStatus } from "./slack/status.js";
+import { SLACK_WORKSPACE_IDS, slackWorkspaceLabel, slackWorkspaces } from "./slack/workspaces.js";
 
 function labelList(ids: unknown, labels: Record<string, string>): string {
   if (!Array.isArray(ids)) return "";
@@ -499,7 +500,24 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
   app.get("/api/ops/integrations", async (req, reply) => {
     try {
       await requireOps(req, reply, db);
-      const live = slackLiveStatus();
+      const configured = new Map(slackWorkspaces(env).map((space) => [space.id, space]));
+      const workspaces = SLACK_WORKSPACE_IDS.map((id) => {
+        const space = configured.get(id);
+        const live = slackLiveStatus(id);
+        return {
+          id,
+          label: slackWorkspaceLabel(id),
+          configured: Boolean(space),
+          mode: live.mode,
+          connected: live.connected,
+          error: live.error,
+          connected_at: live.connectedAt,
+          team_name: live.teamName,
+          bot_name: live.botName,
+          alerts_channel: space?.alertsChannel ?? null,
+          last_alert: live.lastAlert,
+        };
+      });
       const { rows } = await db.query<{
         slack_24h: string;
         metoo_24h: string;
@@ -518,19 +536,9 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         from report
       `);
       const counts = rows[0];
-      const channel = env.SLACK_ALERTS_CHANNEL?.trim() || null;
       return {
-        slack: {
-          configured: Boolean(env.SLACK_BOT_TOKEN),
-          mode: live.mode,
-          connected: live.connected,
-          error: live.error,
-          connected_at: live.connectedAt,
-          team_name: live.teamName,
-          bot_name: live.botName,
-          alerts_channel: channel,
-          last_alert: live.lastAlert,
-        },
+        workspaces,
+        slack: workspaces[0],
         reports: {
           slack_24h: Number(counts?.slack_24h ?? 0),
           metoo_24h: Number(counts?.metoo_24h ?? 0),

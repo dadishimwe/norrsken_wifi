@@ -20,6 +20,11 @@ const envSchema = z.object({
   SLACK_STATUS_CHANNEL: z.string().optional(),
   /** Channel ID (C…) where each new report is announced. Invite the bot first. */
   SLACK_ALERTS_CHANNEL: z.string().optional(),
+  /** Norrsken workspace. The names above stay the Zuba Broadband app. */
+  SLACK_NORRSKEN_BOT_TOKEN: z.string().optional(),
+  SLACK_NORRSKEN_SIGNING_SECRET: z.string().optional(),
+  SLACK_NORRSKEN_APP_TOKEN: z.string().optional(),
+  SLACK_NORRSKEN_ALERTS_CHANNEL: z.string().optional(),
   SLACK_REMEMBER_LAST_ZONE: z
     .string()
     .optional()

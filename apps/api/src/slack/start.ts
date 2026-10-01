@@ -6,6 +6,7 @@ import type { Env } from "../env.js";
 import { registerSlackHandlers } from "./handlers.js";
 import { verifySlackSignature } from "./signature.js";
 import { markSlackConnected, markSlackFailed, markSlackOff, safeSlackError, slackIdentity } from "./status.js";
+import { slackWorkspaces, type SlackWorkspace } from "./workspaces.js";
 
 function quietLogger() {
   const line = (level: string, msg: unknown) => {
@@ -33,61 +34,87 @@ export async function startSlack(
   db: Pool,
   env: Env,
 ): Promise<(() => Promise<void>) | null> {
-  if (!env.SLACK_BOT_TOKEN) {
-    markSlackOff();
-    http.log.info("slack disabled (SLACK_BOT_TOKEN unset)");
+  const spaces = slackWorkspaces(env);
+  if (spaces.length === 0) {
+    markSlackOff("zuba");
+    markSlackOff("norrsken");
+    http.log.info("slack disabled (no workspace tokens)");
     return null;
   }
 
-  const socketMode = Boolean(env.SLACK_APP_TOKEN);
+  const stops: Array<() => Promise<void>> = [];
+  let httpMounted = false;
+  for (const space of spaces) {
+    const started = await startWorkspace(http, db, env, space, httpMounted);
+    if (!started) continue;
+    if (started.http) httpMounted = true;
+    stops.push(started.stop);
+  }
+
+  if (stops.length === 0) return null;
+  return async () => {
+    for (const stop of stops) await stop();
+  };
+}
+
+async function startWorkspace(
+  http: FastifyInstance,
+  db: Pool,
+  env: Env,
+  space: SlackWorkspace,
+  httpMounted: boolean,
+): Promise<{ stop: () => Promise<void>; http: boolean } | null> {
+  const socketMode = Boolean(space.appToken);
+  if (!socketMode && (space.id !== "zuba" || httpMounted)) {
+    markSlackFailed(space.id, "socket", "socket_token_missing");
+    http.log.warn({ workspace: space.id }, "slack workspace needs SLACK app token for socket mode");
+    return null;
+  }
+
   const bolt = new App({
-    token: env.SLACK_BOT_TOKEN,
-    appToken: env.SLACK_APP_TOKEN,
-    signingSecret: env.SLACK_SIGNING_SECRET,
+    token: space.botToken,
+    appToken: space.appToken,
+    signingSecret: space.signingSecret,
     socketMode,
     logger: quietLogger(),
     logLevel: LogLevel.ERROR,
   });
-  registerSlackHandlers(bolt, db, env);
+  registerSlackHandlers(bolt, db, env, space.id);
 
   if (socketMode) {
     try {
       await bolt.start();
-      const identity = await slackIdentity(env.SLACK_BOT_TOKEN).catch(() => ({
+      const identity = await slackIdentity(space.botToken).catch(() => ({
         teamName: null,
         botName: null,
       }));
-      markSlackConnected("socket", identity);
-      http.log.info("slack socket mode connected");
+      markSlackConnected(space.id, "socket", identity);
+      http.log.info({ workspace: space.id, team: identity.teamName }, "slack socket mode connected");
+      return { http: false, stop: async () => { await bolt.stop(); } };
     } catch (err) {
-      markSlackFailed("socket", err instanceof Error ? err.message : "slack_start_failed");
+      markSlackFailed(space.id, "socket", err instanceof Error ? err.message : "slack_start_failed");
       http.log.error(
-        { err: safeSlackError(err instanceof Error ? err.message : "slack_start_failed") },
+        { workspace: space.id, err: safeSlackError(err instanceof Error ? err.message : "slack_start_failed") },
         "slack_start_failed",
       );
       return null;
     }
-    return async () => {
-      await bolt.stop();
-    };
   }
 
-  if (!env.SLACK_SIGNING_SECRET) {
-    markSlackFailed("http", "missing_signing_secret");
-    http.log.warn("slack HTTP mode needs SLACK_SIGNING_SECRET or SLACK_APP_TOKEN");
+  if (!space.signingSecret) {
+    markSlackFailed(space.id, "http", "missing_signing_secret");
+    http.log.warn({ workspace: space.id }, "slack HTTP mode needs a signing secret or app token");
     return null;
   }
 
-  mountHttp(http, bolt, env.SLACK_SIGNING_SECRET);
-  const identity = await slackIdentity(env.SLACK_BOT_TOKEN).catch(() => ({
+  mountHttp(http, bolt, space.signingSecret);
+  const identity = await slackIdentity(space.botToken).catch(() => ({
     teamName: null,
     botName: null,
   }));
-  markSlackConnected("http", identity);
-  http.log.info("slack HTTP receiver mounted at /slack/events");
-  return async () => {
-    await bolt.stop?.();
-  };
+  markSlackConnected(space.id, "http", identity);
+  http.log.info({ workspace: space.id }, "slack HTTP receiver mounted at /slack/events");
+  return { http: true, stop: async () => { await bolt.stop?.(); } };
 }
 
 function mountHttp(http: FastifyInstance, bolt: BoltApp, signingSecret: string) {

@@ -270,6 +270,18 @@ a {
   color: var(--text-muted);
 }
 
+.slack-workspace + .slack-workspace,
+.slack-report-stats {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.slack-workspace h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
 .grid-2 {
   display: grid;
   grid-template-columns: 1.2fr 1fr;

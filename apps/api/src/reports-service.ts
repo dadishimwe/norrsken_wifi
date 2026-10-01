@@ -29,6 +29,7 @@ import {
 } from "@norrsken/shared";
 import type { Env } from "./env.js";
 import { postReportAlert } from "./slack-alert.js";
+import type { SlackWorkspaceId } from "./slack/workspaces.js";
 import { campusWeight, parseCampusIps } from "./campus.js";
 import { mintEditToken, verifyEditToken } from "./edit-token.js";
 
@@ -96,6 +97,7 @@ export async function createReport(
   body: unknown,
   remoteIp: string | undefined,
   userAgent?: string,
+  alertWorkspace?: SlackWorkspaceId,
 ): Promise<{
   report_id: string;
   edit_token: string;
@@ -245,11 +247,15 @@ export async function createReport(
 
   await upsertSession(db, actorHash, input.zone_id, input.wifi_context);
   try {
-    const posted = await postReportAlert(env, {
-      company: input.company,
-      contactOk: input.contact_ok,
-      contactName: input.contact_ok ? input.contact_name : null,
-    });
+    const posted = await postReportAlert(
+      env,
+      {
+        company: input.company,
+        contactOk: input.contact_ok,
+        contactName: input.contact_ok ? input.contact_name : null,
+      },
+      alertWorkspace,
+    );
     if (posted) {
       await db.query(`update report set alert_channel = $2, alert_ts = $3 where id = $1`, [
         reportId,

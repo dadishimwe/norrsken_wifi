@@ -26,6 +26,7 @@ function alertHint(error: string | null, ok: boolean): string {
   if (error === "invalid_auth" || error === "not_authed") return "The bot token is not valid";
   if (error === "connect_failed") return "Could not open the Slack connection";
   if (error === "missing_signing_secret") return "The Slack signing secret is missing";
+  if (error === "socket_token_missing") return "The app token for Socket Mode is missing";
   return error || "Not delivered";
 }
 
@@ -261,16 +262,12 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
     }
   }
 
-  const connection = slack?.slack;
   const reports = slack?.reports;
-  const connected = connection?.connected === true;
-  const connectionLabel = !connection
-    ? "Loading"
-    : !connection.configured
-      ? "Not configured"
-      : connected
-        ? "Connected"
-        : "Not connected";
+  const workspaces = slack?.workspaces?.length
+    ? slack.workspaces
+    : slack?.slack
+      ? [slack.slack]
+      : [];
 
   return (
     <>
@@ -322,46 +319,62 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
           <SlackIcon /> Slack
         </h2>
         {slackError ? <p className="error">{slackError}</p> : null}
-        <div className="stat-rows">
-          <div>
-            <span>Connection</span>
-            <strong>
-              <span
-                className={`status-dot${connected ? "" : connection?.configured ? " bad" : " warn"}`}
-              />{" "}
-              {connectionLabel}
-            </strong>
-          </div>
-          <div>
-            <span>Workspace</span>
-            <strong>{connection?.team_name || "—"}</strong>
-          </div>
-          <div>
-            <span>Bot</span>
-            <strong>{connection?.bot_name || "—"}</strong>
-          </div>
-          <div>
-            <span>Link</span>
-            <strong>
-              {connection?.mode === "socket"
-                ? "Socket"
-                : connection?.mode === "http"
-                  ? "HTTP"
-                  : "—"}
-            </strong>
-          </div>
-          <div>
-            <span>Alerts channel</span>
-            <strong>{connection?.alerts_channel || "Not set"}</strong>
-          </div>
-          <div>
-            <span>Last alert</span>
-            <strong>
-              {connection?.last_alert
-                ? `${timeAgo(connection.last_alert.at)} · ${alertHint(connection.last_alert.error, connection.last_alert.ok)}`
-                : "None yet"}
-            </strong>
-          </div>
+        {workspaces.map((connection) => {
+          const connected = connection.connected === true;
+          const connectionLabel = !connection.configured
+            ? "Not configured"
+            : connected
+              ? "Connected"
+              : "Not connected";
+          return (
+            <div className="slack-workspace" key={connection.id}>
+              <h3>{connection.label}</h3>
+              <div className="stat-rows">
+                <div>
+                  <span>Connection</span>
+                  <strong>
+                    <span
+                      className={`status-dot${connected ? "" : connection.configured ? " bad" : " warn"}`}
+                    />{" "}
+                    {connectionLabel}
+                  </strong>
+                </div>
+                <div>
+                  <span>Workspace</span>
+                  <strong>{connection.team_name || "—"}</strong>
+                </div>
+                <div>
+                  <span>Bot</span>
+                  <strong>{connection.bot_name || "—"}</strong>
+                </div>
+                <div>
+                  <span>Link</span>
+                  <strong>
+                    {connection.mode === "socket" ? "Socket" : connection.mode === "http" ? "HTTP" : "—"}
+                  </strong>
+                </div>
+                <div>
+                  <span>Alerts channel</span>
+                  <strong>{connection.alerts_channel || "Not set"}</strong>
+                </div>
+                <div>
+                  <span>Last alert</span>
+                  <strong>
+                    {connection.last_alert
+                      ? `${timeAgo(connection.last_alert.at)} · ${alertHint(connection.last_alert.error, connection.last_alert.ok)}`
+                      : "None yet"}
+                  </strong>
+                </div>
+              </div>
+              {connection.error && !connected ? (
+                <p className="muted" style={{ marginTop: 16 }}>
+                  {alertHint(connection.error, false)}
+                </p>
+              ) : null}
+            </div>
+          );
+        })}
+        <div className="stat-rows slack-report-stats">
           <div>
             <span>Last Slack report</span>
             <strong>{timeAgo(reports?.last_slack_at)}</strong>
@@ -379,11 +392,6 @@ export function IntegrationsView({ canEdit }: { canEdit: boolean }) {
             <strong>{reports?.slack_7d ?? "—"}</strong>
           </div>
         </div>
-        {connection?.error && !connected ? (
-          <p className="muted" style={{ marginTop: 16 }}>
-            {alertHint(connection.error, false)}
-          </p>
-        ) : null}
       </section>
     </div>
     <section className="panel rooms-panel">

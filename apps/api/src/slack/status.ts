@@ -1,3 +1,5 @@
+import { SLACK_WORKSPACE_IDS, type SlackWorkspaceId } from "./workspaces.js";
+
 export type SlackAlertResult = {
   at: string;
   ok: boolean;
@@ -14,57 +16,76 @@ export type SlackLiveStatus = {
   lastAlert: SlackAlertResult | null;
 };
 
-const state: SlackLiveStatus = {
-  mode: "off",
-  connected: false,
-  error: null,
-  connectedAt: null,
-  teamName: null,
-  botName: null,
-  lastAlert: null,
-};
+function blankStatus(): SlackLiveStatus {
+  return {
+    mode: "off",
+    connected: false,
+    error: null,
+    connectedAt: null,
+    teamName: null,
+    botName: null,
+    lastAlert: null,
+  };
+}
 
-export function slackLiveStatus(): SlackLiveStatus {
+const states = new Map<SlackWorkspaceId, SlackLiveStatus>(
+  SLACK_WORKSPACE_IDS.map((id) => [id, blankStatus()]),
+);
+
+function copyStatus(state: SlackLiveStatus): SlackLiveStatus {
   return {
     ...state,
     lastAlert: state.lastAlert ? { ...state.lastAlert } : null,
   };
 }
 
-export function markSlackOff(): void {
+export function slackLiveStatus(id: SlackWorkspaceId = "zuba"): SlackLiveStatus {
+  return copyStatus(states.get(id) ?? blankStatus());
+}
+
+export function markSlackOff(id: SlackWorkspaceId): void {
+  const state = states.get(id) ?? blankStatus();
   state.mode = "off";
   state.connected = false;
   state.error = null;
   state.connectedAt = null;
   state.teamName = null;
   state.botName = null;
+  states.set(id, state);
 }
 
-export function markSlackFailed(mode: "socket" | "http", error: string): void {
+export function markSlackFailed(id: SlackWorkspaceId, mode: "socket" | "http", error: string): void {
+  const state = states.get(id) ?? blankStatus();
   state.mode = mode;
   state.connected = false;
   state.error = safeSlackError(error);
   state.connectedAt = null;
+  states.set(id, state);
 }
 
 export function markSlackConnected(
+  id: SlackWorkspaceId,
   mode: "socket" | "http",
   identity?: { teamName?: string | null; botName?: string | null },
 ): void {
+  const state = states.get(id) ?? blankStatus();
   state.mode = mode;
   state.connected = true;
   state.error = null;
   state.connectedAt = new Date().toISOString();
   state.teamName = identity?.teamName ?? null;
   state.botName = identity?.botName ?? null;
+  states.set(id, state);
 }
 
-export function markAlertResult(ok: boolean, error: string | null): void {
+export function markAlertResult(id: SlackWorkspaceId, ok: boolean, error: string | null): void {
+  const state = states.get(id) ?? blankStatus();
   state.lastAlert = {
     at: new Date().toISOString(),
     ok,
     error: error ? safeSlackError(error) : null,
   };
+  states.set(id, state);
 }
 
 export function safeSlackError(error: string): string {

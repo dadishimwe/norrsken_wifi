@@ -1,5 +1,6 @@
 import type { Env } from "./env.js";
 import { markAlertResult } from "./slack/status.js";
+import { slackWorkspaces, type SlackWorkspace, type SlackWorkspaceId } from "./slack/workspaces.js";
 
 /** One line for the house alerts channel. Phone and email stay on the dashboard. */
 export function reportAlertText(input: {
@@ -32,22 +33,38 @@ async function slackPost(
   return (await res.json().catch(() => ({}))) as SlackOk;
 }
 
+async function postOne(
+  space: SlackWorkspace,
+  text: string,
+): Promise<{ channel: string; ts: string } | null> {
+  const channel = space.alertsChannel;
+  if (!channel) return null;
+  const data = await slackPost(space.botToken, { channel, text });
+  if (!data.ok || !data.ts) {
+    const error = data.error || "post_failed";
+    markAlertResult(space.id, false, error);
+    console.error("slack alert", space.id, error);
+    return null;
+  }
+  markAlertResult(space.id, true, null);
+  return { channel: data.channel || channel, ts: data.ts };
+}
+
 export async function postReportAlert(
   env: Env,
   input: { company?: string | null; contactOk?: boolean; contactName?: string | null },
+  workspaceId?: SlackWorkspaceId,
 ): Promise<{ channel: string; ts: string } | null> {
-  const token = env.SLACK_BOT_TOKEN;
-  const channel = env.SLACK_ALERTS_CHANNEL?.trim();
-  if (!token || !channel) return null;
-  const data = await slackPost(token, { channel, text: reportAlertText(input) });
-  if (!data.ok || !data.ts) {
-    const error = data.error || "post_failed";
-    markAlertResult(false, error);
-    console.error("slack alert", error);
-    return null;
+  const text = reportAlertText(input);
+  const spaces = slackWorkspaces(env).filter((space) => space.alertsChannel);
+  const targets = workspaceId ? spaces.filter((space) => space.id === workspaceId) : spaces;
+  let stored: { channel: string; ts: string } | null = null;
+  for (const space of targets) {
+    const posted = await postOne(space, text);
+    if (!posted) continue;
+    if (!stored || space.id === "zuba") stored = posted;
   }
-  markAlertResult(true, null);
-  return { channel: data.channel || channel, ts: data.ts };
+  return stored;
 }
 
 /** Reply on the alerts-channel thread. The text must not include phone or email. */
@@ -55,15 +72,20 @@ export async function postAlertsThread(
   env: Env,
   input: { text: string; channel?: string | null; threadTs?: string | null },
 ): Promise<boolean> {
-  const token = env.SLACK_BOT_TOKEN;
-  const channel = input.channel?.trim() || env.SLACK_ALERTS_CHANNEL?.trim();
-  if (!token || !channel || !input.text.trim()) return false;
-  const body: Record<string, string> = { channel, text: input.text.trim() };
-  if (input.threadTs) body.thread_ts = input.threadTs;
-  const data = await slackPost(token, body);
-  if (!data.ok) {
-    console.error("slack thread", data.error || "post_failed");
-    return false;
+  const spaces = slackWorkspaces(env);
+  const channel = input.channel?.trim() || spaces.find((space) => space.alertsChannel)?.alertsChannel;
+  if (!channel || !input.text.trim() || spaces.length === 0) return false;
+  const ordered = [...spaces].sort((a, b) => {
+    if (a.alertsChannel === channel) return -1;
+    if (b.alertsChannel === channel) return 1;
+    return 0;
+  });
+  for (const space of ordered) {
+    const body: Record<string, string> = { channel, text: input.text.trim() };
+    if (input.threadTs) body.thread_ts = input.threadTs;
+    const data = await slackPost(space.botToken, body);
+    if (data.ok) return true;
+    console.error("slack thread", space.id, data.error || "post_failed");
   }
-  return true;
+  return false;
 }

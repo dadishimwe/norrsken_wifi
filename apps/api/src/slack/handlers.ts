@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import { computeActorHash } from "@norrsken/db";
 import { APPS, SYMPTOMS, UNIVERSAL_ZONE_ID, type App as AppId, type Symptom } from "@norrsken/shared";
 import type { Env } from "../env.js";
+import type { SlackWorkspaceId } from "./workspaces.js";
 import { HttpError, createReport } from "../reports-service.js";
 import {
   parseDraft,
@@ -154,7 +155,7 @@ function draftFromValues(view: { private_metadata?: string; state?: { values?: V
   return draft;
 }
 
-export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
+export function registerSlackHandlers(bolt: App, db: Pool, env: Env, workspaceId: SlackWorkspaceId = "zuba") {
   async function openReport(client: { views: { open: (args: { trigger_id: string; view: View }) => Promise<unknown> } }, triggerId: string, userId: string) {
     const draft = parseDraft(null);
     draft.zone_id = UNIVERSAL_ZONE_ID;
@@ -249,7 +250,7 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     }
     const occurredAt = occurredAtFromPick(draft.occurred_date, draft.occurred_time);
     try {
-      const saved = await submitDraft(db, env, draft, body.user.id, "slack", occurredAt);
+      const saved = await submitDraft(db, env, draft, body.user.id, "slack", workspaceId, occurredAt);
       await ack({ response_action: "update", view: thanksView(saved.recent_count) });
     } catch (err) {
       await ack({
@@ -272,7 +273,7 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env) {
     draft.contact_ok = false;
     if (draft.symptoms.length === 0) draft.symptoms = ["no_internet"];
     try {
-      const saved = await submitDraft(db, env, draft, body.user.id, "slack_metoo");
+      const saved = await submitDraft(db, env, draft, body.user.id, "slack_metoo", workspaceId);
       await ack({ response_action: "update", view: thanksView(saved.recent_count) });
     } catch (err) {
       await ack({
@@ -304,6 +305,7 @@ async function submitDraft(
   draft: SlackDraft,
   slackUserId: string,
   channel: "slack" | "slack_metoo",
+  workspaceId: SlackWorkspaceId,
   occurredAt?: string,
 ) {
   const saved = await createReport(
@@ -329,6 +331,8 @@ async function submitDraft(
       session_token: slackActorToken(slackUserId),
     },
     undefined,
+    undefined,
+    workspaceId,
   );
   return saved;
 }
