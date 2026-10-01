@@ -184,30 +184,7 @@ export function reportFormView(draft: SlackDraft): View {
         type: "context",
         elements: [{ type: "mrkdwn", text: "Date and time are optional. Leave them blank to keep the When answer only." }],
       },
-      {
-        type: "input",
-        optional: true,
-        block_id: "apps",
-        label: plain("Which apps?"),
-        element: {
-          type: "multi_static_select",
-          action_id: "app_ids",
-          placeholder: plain("Optional — up to 5"),
-          max_selected_items: 5,
-          options: APPS.map((id) => ({
-            text: plain(APP_LABELS[id]),
-            value: id,
-          })),
-          ...(draft.apps.length
-            ? {
-                initial_options: draft.apps.map((id) => ({
-                  text: plain(APP_LABELS[id]),
-                  value: id,
-                })),
-              }
-            : {}),
-        },
-      },
+      ...appCheckboxBlocks(draft),
       {
         type: "input",
         optional: true,
@@ -413,25 +390,37 @@ export function clarifierView(draft: SlackDraft, clarifier: ClarifierDef): View 
   );
 }
 
-export function appsView(draft: SlackDraft): View {
-  return modal("wifi_apps", "Which apps?", draft, [
+function appOption(id: (typeof APPS)[number]) {
+  return { text: plain(APP_LABELS[id]), value: id };
+}
+
+/** One checkbox per app, packed into rows. A single checkbox list stacks down the modal. */
+function appCheckboxBlocks(draft: SlackDraft): KnownBlock[] {
+  const rows: (typeof APPS)[number][][] = [];
+  for (let i = 0; i < APPS.length; i += 4) rows.push(APPS.slice(i, i + 4));
+  return [
     {
-      type: "input",
-      optional: true,
-      block_id: "apps",
-      label: plain("Optional"),
-      element: {
-        type: "multi_static_select",
-        action_id: "app_ids",
-        placeholder: plain("Any that apply"),
-        max_selected_items: 5,
-        options: APPS.map((id) => ({
-          text: plain(APP_LABELS[id]),
-          value: id,
-        })),
-      },
+      type: "context",
+      elements: [{ type: "mrkdwn", text: "*Which apps?* Optional. Pick up to 5." }],
     },
-  ]);
+    ...rows.map((ids, index) => ({
+      type: "actions" as const,
+      block_id: index === 0 ? "apps" : `apps_${index + 1}`,
+      elements: ids.map((id) => {
+        const option = appOption(id);
+        return {
+          type: "checkboxes" as const,
+          action_id: id,
+          options: [option],
+          ...(draft.apps.includes(id) ? { initial_options: [option] } : {}),
+        };
+      }),
+    })),
+  ];
+}
+
+export function appsView(draft: SlackDraft): View {
+  return modal("wifi_apps", "Which apps?", draft, appCheckboxBlocks(draft));
 }
 
 export function detailsView(

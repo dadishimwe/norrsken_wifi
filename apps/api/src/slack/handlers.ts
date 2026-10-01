@@ -41,6 +41,13 @@ function many(values: Values, block: string, action: string): string[] {
     .filter(Boolean);
 }
 
+function pickedAppIds(values: Values): AppId[] {
+  const blocks = [values.apps, values.apps_2, values.apps_3];
+  return APPS.filter((id) =>
+    blocks.some((block) => (block?.[id]?.selected_options ?? []).some((option) => option.value === id)),
+  );
+}
+
 function text(values: Values, block: string, action: string): string {
   return values[block]?.[action]?.value?.trim() ?? "";
 }
@@ -129,9 +136,7 @@ function draftFromValues(view: { private_metadata?: string; state?: { values?: V
   if (when === "now" || when === "recent" || when === "earlier") draft.when_bucket = when;
   draft.occurred_date = dateValue(values, "occurred_date", "date");
   draft.occurred_time = timeValue(values, "occurred_time", "time");
-  let apps = many(values, "apps", "app_ids")
-    .filter((id): id is AppId => (APPS as readonly string[]).includes(id))
-    .slice(0, 5);
+  let apps = pickedAppIds(values).slice(0, 5);
   const otherApp = text(values, "other_app", "other_app").slice(0, 80);
   if (otherApp) {
     const withOther: AppId[] = [...apps.filter((id) => id !== "other"), "other"];
@@ -220,6 +225,12 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env, workspaceId
     });
   });
 
+  for (const appId of APPS) {
+    bolt.action(appId, async ({ ack }) => {
+      await ack();
+    });
+  }
+
   bolt.action("contact_ok", async ({ ack, body, client }) => {
     await ack();
     if (!("view" in body) || !body.view) return;
@@ -242,6 +253,8 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env, workspaceId
     const symptomErr = symptomError(draft.symptoms);
     const errors: Record<string, string> = {};
     if (symptomErr) errors.symptoms = symptomErr;
+    const formValues = (view.state?.values ?? {}) as Values;
+    if (pickedAppIds(formValues).length > 5) errors.apps = "Pick up to 5 apps.";
     if (!draft.company.trim()) errors.company = "Tell us the company or place.";
     if (!validEmail(draft.contact_email)) errors.contact_email = "Enter a valid email.";
     if (Object.keys(errors).length > 0) {
