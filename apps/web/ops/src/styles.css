@@ -1788,9 +1788,26 @@ html[data-theme="dark"] .status-pill.resolved {
 .bulk-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
   margin: 0 0 0.85rem;
+}
+
+.cselect.cselect-unlabeled {
+  min-width: 0;
+  width: 100%;
+  flex: none;
+}
+
+.cselect.cselect-unlabeled .cselect-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
 }
 
 .filter-field select,

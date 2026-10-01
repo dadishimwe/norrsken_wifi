@@ -134,12 +134,12 @@ function useAnchoredPopover(open: boolean, onClose: () => void) {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onCloseRef.current();
     }
-    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("mousedown", onDoc, true);
     document.addEventListener("keydown", onKey);
     window.addEventListener("scroll", place, true);
     window.addEventListener("resize", place);
     return () => {
-      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("mousedown", onDoc, true);
       document.removeEventListener("keydown", onKey);
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);

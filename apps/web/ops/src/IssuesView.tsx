@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { opsApi, type DashboardPayload, type ReportsPage } from "./api";
+import { CustomSelect } from "./CustomSelect";
 import { ReportDrawer } from "./drawers";
 import {
   AssigneePicker,
@@ -124,42 +125,35 @@ export function IssuesView({ meId }: Props) {
           >
             Assigned to me
           </button>
-          <label className="filter-field">
-            <span className="sr-only">Location</span>
-            <select
-              value={zoneId}
-              onChange={(e) => {
-                setZoneId(e.target.value);
-                setPage(1);
-                setSelected([]);
-              }}
-            >
-              <option value="">All locations</option>
-              {zones.map((zone) => (
-                <option key={zone.zone_id} value={zone.zone_id}>
-                  {zone.zone_id === "house" ? "House" : zone.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="filter-field">
-            <span className="sr-only">Company</span>
-            <select
-              value={company}
-              onChange={(e) => {
-                setCompany(e.target.value);
-                setPage(1);
-                setSelected([]);
-              }}
-            >
-              <option value="">All companies</option>
-              {companies.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <CustomSelect
+            label="Location"
+            value={zoneId}
+            onChange={(value) => {
+              setZoneId(value);
+              setPage(1);
+              setSelected([]);
+            }}
+            options={[
+              { value: "", label: "All locations" },
+              ...zones.map((zone) => ({
+                value: zone.zone_id,
+                label: zone.zone_id === "house" ? "House" : zone.label,
+              })),
+            ]}
+          />
+          <CustomSelect
+            label="Company"
+            value={company}
+            onChange={(value) => {
+              setCompany(value);
+              setPage(1);
+              setSelected([]);
+            }}
+            options={[
+              { value: "", label: "All companies" },
+              ...companies.map((name) => ({ value: name, label: name })),
+            ]}
+          />
         </div>
         {selected.length > 0 ? (
           <div className="bulk-bar">

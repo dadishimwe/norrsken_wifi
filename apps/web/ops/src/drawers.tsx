@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { opsApi, type IncidentComment, type ReportRow } from "./api";
+import { CustomSelect } from "./CustomSelect";
 import {
   AssigneePicker,
   PRIORITY_OPTIONS,
@@ -256,18 +257,14 @@ export function ReportDrawer({
             <div>
               <dt>Priority</dt>
               <dd>
-                <select
-                  aria-label="Priority"
+                <CustomSelect
+                  label="Priority"
+                  className="cselect-unlabeled"
                   value={report.priority === "high" || report.priority === "urgent" ? report.priority : "normal"}
                   disabled={busy}
-                  onChange={(e) => void patch({ priority: e.target.value as Priority })}
-                >
-                  {PRIORITY_OPTIONS.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => void patch({ priority: value as Priority })}
+                  options={PRIORITY_OPTIONS.map((item) => ({ value: item.id, label: item.label }))}
+                />
               </dd>
             </div>
           </>
