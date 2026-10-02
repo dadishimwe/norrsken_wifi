@@ -11,12 +11,13 @@ export type OpsUser = {
   role: OpsRole;
   company: OpsCompany;
   active: boolean;
+  assignable: boolean;
   created_at: Date;
   last_login_at: Date | null;
 };
 
 const OPS_USER_FIELDS =
-  "id, username, display_name, role, company, active, created_at, last_login_at";
+  "id, username, display_name, role, company, active, assignable, created_at, last_login_at";
 
 const SCRYPT_KEYLEN = 64;
 
@@ -53,14 +54,15 @@ export async function createOpsUser(
     password: string;
     role: OpsRole;
     company?: OpsCompany;
+    assignable?: boolean;
     created_by?: string | null;
   },
 ): Promise<OpsUser> {
   const password_hash = hashPassword(input.password);
   const { rows } = await db.query<OpsUser>(
     `
-    insert into ops_user (username, display_name, password_hash, role, company, created_by)
-    values ($1, $2, $3, $4, $5, $6)
+    insert into ops_user (username, display_name, password_hash, role, company, assignable, created_by)
+    values ($1, $2, $3, $4, $5, $6, $7)
     returning ${OPS_USER_FIELDS}
     `,
     [
@@ -69,6 +71,7 @@ export async function createOpsUser(
       password_hash,
       input.role,
       input.company ?? "norrsken",
+      input.assignable === true,
       input.created_by ?? null,
     ],
   );
@@ -152,6 +155,38 @@ export async function setOpsUserUsername(
     returning ${OPS_USER_FIELDS}
     `,
     [id, username.toLowerCase().trim()],
+  );
+  return rows[0] ?? null;
+}
+
+export async function setOpsUserRole(
+  db: Pool,
+  id: string,
+  role: OpsRole,
+): Promise<OpsUser | null> {
+  const { rows } = await db.query<OpsUser>(
+    `
+    update ops_user set role = $2
+    where id = $1
+    returning ${OPS_USER_FIELDS}
+    `,
+    [id, role],
+  );
+  return rows[0] ?? null;
+}
+
+export async function setOpsUserAssignable(
+  db: Pool,
+  id: string,
+  assignable: boolean,
+): Promise<OpsUser | null> {
+  const { rows } = await db.query<OpsUser>(
+    `
+    update ops_user set assignable = $2
+    where id = $1
+    returning ${OPS_USER_FIELDS}
+    `,
+    [id, assignable],
   );
   return rows[0] ?? null;
 }

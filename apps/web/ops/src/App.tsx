@@ -149,7 +149,12 @@ export function App() {
           ) : tab === "board" && canTriage(user) ? (
             <BoardView meId={user.id} />
           ) : (
-            <DashboardView canEdit={staffRole(user.role)} canTriage={canTriage(user)} meId={user.id} />
+            <DashboardView
+              canEdit={staffRole(user.role)}
+              canTriage={canTriage(user)}
+              meId={user.id}
+              linkedReportId={new URLSearchParams(window.location.search).get("report")}
+            />
           )}
         </PageBoundary>
       </main>

@@ -18,6 +18,8 @@ import {
   setOpsUserPassword,
   setOpsUserUsername,
   setOpsUserCompany,
+  setOpsUserRole,
+  setOpsUserAssignable,
   updateZone,
   verifyPassword,
   type OpsUser,
@@ -171,6 +173,8 @@ function publicUser(user: OpsUser) {
     display_name: user.display_name,
     role: user.role,
     company: user.company,
+    active: user.active,
+    assignable: user.assignable,
   };
 }
 
@@ -280,6 +284,7 @@ const createUserSchema = z.object({
   password: z.string().min(12).max(128),
   role: z.enum(["super_admin", "admin", "viewer"]).default("viewer"),
   company: z.enum(COMPANIES).default("norrsken"),
+  assignable: z.boolean().optional(),
 });
 
 export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env) {
@@ -397,6 +402,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         password: parsed.data.password,
         role: parsed.data.role,
         company: parsed.data.company,
+        assignable: me.role === "super_admin" && parsed.data.assignable === true,
         created_by: me.id,
       });
       return reply.code(201).send({ user: publicUser(user) });
@@ -426,6 +432,8 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
             .regex(/^[a-z0-9._-]+$/i, "username: letters, numbers, . _ -")
             .optional(),
           company: z.enum(COMPANIES).optional(),
+          role: z.enum(["super_admin", "admin", "viewer"]).optional(),
+          assignable: z.boolean().optional(),
         })
         .safeParse(req.body);
       if (!body.success) return reply.code(400).send({ error: "invalid_body" });
@@ -451,6 +459,28 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
       }
       if (body.data.company) {
         user = await setOpsUserCompany(db, id, body.data.company);
+      }
+      if (body.data.role) {
+        requireSuperAdmin(me);
+        if (id === me.id) return reply.code(400).send({ error: "cannot_change_own_role" });
+        if (body.data.role !== "super_admin" && target.role === "super_admin") {
+          const others = await db.query<{ n: string }>(
+            `
+            select count(*)::text as n
+            from ops_user
+            where role = 'super_admin' and active = true and id <> $1
+            `,
+            [id],
+          );
+          if (Number(others.rows[0]?.n ?? 0) === 0) {
+            return reply.code(400).send({ error: "last_super_admin" });
+          }
+        }
+        user = await setOpsUserRole(db, id, body.data.role);
+      }
+      if (typeof body.data.assignable === "boolean") {
+        requireSuperAdmin(me);
+        user = await setOpsUserAssignable(db, id, body.data.assignable);
       }
       if (!user) return reply.code(404).send({ error: "not_found" });
       return { user: publicUser(user) };
@@ -479,8 +509,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
         db.query(`
           select id, display_name, company
           from ops_user
-          where active = true
-            and (role = 'super_admin' or (role = 'admin' and company = 'dct'))
+          where active = true and assignable = true
           order by display_name
         `),
       ]);
@@ -969,6 +998,27 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
     }
   });
 
+  app.get("/api/ops/reports/:id", async (req, reply) => {
+    try {
+      const me = await requireOps(req, reply, db);
+      const { id } = req.params as { id: string };
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return reply.code(404).send({ error: "not_found" });
+      const { rows } = await db.query(
+        `
+        ${reportWorkSelect}
+        where v.id = $1
+        `,
+        [id],
+      );
+      const report = rows[0];
+      if (!report) return reply.code(404).send({ error: "not_found" });
+      return { report: hideAssignment([report], canTriage(me))[0] };
+    } catch (err) {
+      if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
+      throw err;
+    }
+  });
+
   const workPatch = z.object({
     assigned_to: z.string().uuid().nullable().optional(),
     work_status: z.enum(WORK_STATUSES).optional(),
@@ -982,7 +1032,7 @@ export async function registerOpsRoutes(app: FastifyInstance, db: Pool, env: Env
     let assignee: OpsUser | null = null;
     if (body.assigned_to) {
       assignee = await getOpsUserById(db, body.assigned_to);
-      if (!assignee || !assignee.active || !canTriage(assignee)) {
+      if (!assignee || !assignee.active || !assignee.assignable) {
         throw new HttpError(400, "bad_assignee");
       }
     }

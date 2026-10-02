@@ -5,6 +5,7 @@ export type OpsUser = {
   role: "super_admin" | "admin" | "viewer";
   company: "norrsken" | "zuba" | "dct";
   active?: boolean;
+  assignable?: boolean;
   created_at?: string;
   last_login_at?: string | null;
 };
@@ -207,6 +208,7 @@ export const opsApi = {
     if (opts?.active === false) sp.set("active", "0");
     return api<ReportsPage>(`/api/ops/reports?${sp}`);
   },
+  report: (id: string) => api<{ report: ReportRow }>(`/api/ops/reports/${id}`),
   updateReportWork: (
     id: string,
     body: {
@@ -286,6 +288,7 @@ export const opsApi = {
     password: string;
     role: "super_admin" | "admin" | "viewer";
     company: "norrsken" | "zuba" | "dct";
+    assignable?: boolean;
   }) =>
     api<{ user: OpsUser }>("/api/ops/users", {
       method: "POST",
@@ -298,6 +301,8 @@ export const opsApi = {
       password?: string;
       username?: string;
       company?: "norrsken" | "zuba" | "dct";
+      role?: "super_admin" | "admin" | "viewer";
+      assignable?: boolean;
     },
   ) =>
     api<{ user: OpsUser }>(`/api/ops/users/${id}`, {

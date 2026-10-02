@@ -257,6 +257,9 @@ export async function createReport(
         contactName: input.contact_ok ? input.contact_name : null,
         place: zone.id === UNIVERSAL_ZONE_ID ? "House" : zone.label,
         symptom: symptomId ? (SYMPTOM_LABELS[symptomId] ?? symptomId) : null,
+        url: env.PUBLIC_BASE_URL?.trim()
+          ? `${env.PUBLIC_BASE_URL.trim().replace(/\/$/, "")}/ops/?report=${reportId}`
+          : null,
       },
       alertWorkspace,
     );

@@ -22,6 +22,7 @@ async function main() {
         display_name: display,
         password,
         role: "super_admin",
+        assignable: true,
       });
       console.log(`Created super admin ${username}`);
     }

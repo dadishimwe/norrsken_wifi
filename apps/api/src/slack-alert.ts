@@ -71,10 +71,12 @@ export async function postReportAlert(
     contactName?: string | null;
     place?: string | null;
     symptom?: string | null;
+    url?: string | null;
   },
   workspaceId?: SlackWorkspaceId,
 ): Promise<{ channel: string; ts: string } | null> {
-  const text = reportAlertText(input);
+  const link = input.url?.trim();
+  const text = link ? `${reportAlertText(input)}\n<${link}|Open in Ops>` : reportAlertText(input);
   const spaces = slackWorkspaces(env).filter((space) => space.alertsChannel);
   const targets = workspaceId ? spaces.filter((space) => space.id === workspaceId) : spaces;
   let stored: { channel: string; ts: string } | null = null;

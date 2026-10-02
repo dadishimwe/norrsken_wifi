@@ -26,6 +26,7 @@ export async function ensureBootstrapAdmin(db: Pool, env: Env): Promise<void> {
     display_name: env.OPS_ADMIN_DISPLAY_NAME || "Network Admin",
     password: env.OPS_ADMIN_PASSWORD,
     role: "super_admin",
+    assignable: true,
   });
   console.log(`[ops] Bootstrap admin created: ${env.OPS_ADMIN_USERNAME}`);
 }

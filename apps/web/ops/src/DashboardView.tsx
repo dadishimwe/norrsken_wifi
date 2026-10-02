@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { downloadCsv, opsApi, type DashboardPayload, type ReportsPage } from "./api";
+import { downloadCsv, opsApi, type DashboardPayload, type ReportRow, type ReportsPage } from "./api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ReportDrawer } from "./drawers";
 import {
@@ -109,11 +109,11 @@ function RowMenu({ onDelete }: { onDelete: () => void }) {
   );
 }
 
-type Props = { canEdit?: boolean; canTriage?: boolean; meId: string };
+type Props = { canEdit?: boolean; canTriage?: boolean; meId: string; linkedReportId?: string | null };
 
 type PendingDelete = { id: string; zoneLabel: string; when: string };
 
-export function DashboardView({ canEdit = false, canTriage = false, meId }: Props) {
+export function DashboardView({ canEdit = false, canTriage = false, meId, linkedReportId = null }: Props) {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [reportsPage, setReportsPage] = useState<ReportsPage | null>(null);
   const [page, setPage] = useState(1);
@@ -121,7 +121,8 @@ export function DashboardView({ canEdit = false, canTriage = false, meId }: Prop
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const [pending, setPending] = useState<PendingDelete | null>(null);
-  const [openReportId, setOpenReportId] = useState<string | null>(null);
+  const [openReportId, setOpenReportId] = useState<string | null>(linkedReportId);
+  const [linkedReport, setLinkedReport] = useState<ReportRow | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   function flash(msg: string) {
@@ -150,6 +151,22 @@ export function DashboardView({ canEdit = false, canTriage = false, meId }: Prop
       clearInterval(id);
     };
   }, [page, tick]);
+
+  useEffect(() => {
+    if (!linkedReportId || !/^[0-9a-f-]{36}$/i.test(linkedReportId)) return;
+    let cancelled = false;
+    opsApi
+      .report(linkedReportId)
+      .then(({ report }) => {
+        if (!cancelled) setLinkedReport(report);
+      })
+      .catch(() => {
+        if (!cancelled) setLinkedReport(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedReportId]);
 
   async function confirmDelete() {
     if (!pending || !canEdit) return;
@@ -196,7 +213,9 @@ export function DashboardView({ canEdit = false, canTriage = false, meId }: Prop
       ? data.reports
       : [];
   const assignees = Array.isArray(data.assignees) ? data.assignees : [];
-  const openReport = rows.find((r) => r.id === openReportId) ?? null;
+  const openReport =
+    rows.find((r) => r.id === openReportId) ??
+    (linkedReport?.id === openReportId ? linkedReport : null);
 
   return (
     <>
@@ -382,8 +401,23 @@ export function DashboardView({ canEdit = false, canTriage = false, meId }: Prop
           canTriage={canTriage}
           assignees={assignees}
           meId={meId}
-          onClose={() => setOpenReportId(null)}
-          onChanged={() => setTick((t) => t + 1)}
+          onClose={() => {
+            setOpenReportId(null);
+            const url = new URL(window.location.href);
+            if (url.searchParams.has("report")) {
+              url.searchParams.delete("report");
+              window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+            }
+          }}
+          onChanged={() => {
+            setTick((t) => t + 1);
+            if (openReportId) {
+              opsApi
+                .report(openReportId)
+                .then(({ report }) => setLinkedReport(report))
+                .catch(() => undefined);
+            }
+          }}
         />
       ) : null}
     </>

@@ -50,6 +50,9 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
   const [nextPassword, setNextPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [nextCompany, setNextCompany] = useState<"norrsken" | "zuba" | "dct">("norrsken");
+  const [nextRole, setNextRole] = useState<"super_admin" | "admin" | "viewer">("viewer");
+  const [nextAssignable, setNextAssignable] = useState(false);
+  const [createAssignable, setCreateAssignable] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -82,12 +85,14 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
         password,
         role: me.role === "super_admin" ? role : "viewer",
         company,
+        assignable: me.role === "super_admin" ? createAssignable : false,
       });
       setUsername("");
       setDisplayName("");
       setPassword("");
       setRole("viewer");
       setCompany("norrsken");
+      setCreateAssignable(false);
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "create_failed");
@@ -113,6 +118,8 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
     setNextPassword("");
     setConfirmPassword("");
     setNextCompany(u.company ?? "norrsken");
+    setNextRole(u.role);
+    setNextAssignable(u.assignable === true);
     setResetError(null);
   }
 
@@ -123,6 +130,8 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
     setNextPassword("");
     setConfirmPassword("");
     setNextCompany("norrsken");
+    setNextRole("viewer");
+    setNextAssignable(false);
     setResetError(null);
   }
 
@@ -132,6 +141,8 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
     const usernameNext = nextUsername.trim().toLowerCase();
     const usernameChanged = usernameNext !== resetUser.username;
     const companyChanged = nextCompany !== (resetUser.company ?? "norrsken");
+    const roleChanged = me.role === "super_admin" && resetUser.id !== me.id && nextRole !== resetUser.role;
+    const assignableChanged = me.role === "super_admin" && nextAssignable !== (resetUser.assignable === true);
     const passwordFilled = nextPassword.length > 0 || confirmPassword.length > 0;
     if (!/^[a-z0-9._-]+$/i.test(usernameNext)) {
       setResetError("Username can use letters, numbers, dots, underscores, and hyphens.");
@@ -141,8 +152,8 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
       setResetError("Usernames do not match.");
       return;
     }
-    if (!usernameChanged && !passwordFilled && !companyChanged) {
-      setResetError("Change the username, company, or enter a new password.");
+    if (!usernameChanged && !passwordFilled && !companyChanged && !roleChanged && !assignableChanged) {
+      setResetError("Change the username, role, company, assignment, or enter a new password.");
       return;
     }
     if (passwordFilled) {
@@ -162,6 +173,8 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
         ...(usernameChanged ? { username: usernameNext } : {}),
         ...(passwordFilled ? { password: nextPassword } : {}),
         ...(companyChanged ? { company: nextCompany } : {}),
+        ...(roleChanged ? { role: nextRole } : {}),
+        ...(assignableChanged ? { assignable: nextAssignable } : {}),
       });
       closeReset();
       setToast(`Account updated for @${usernameNext}`);
@@ -169,7 +182,12 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
       await reload();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "update_failed";
-      setResetError(msg === "username_taken" ? "That username is already in use." : msg);
+      const known: Record<string, string> = {
+        username_taken: "That username is already in use.",
+        cannot_change_own_role: "You cannot change your own role.",
+        last_super_admin: "Keep at least one active super admin.",
+      };
+      setResetError(known[msg] ?? msg);
     } finally {
       setBusy(false);
     }
@@ -234,6 +252,27 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
                 disabled={busy}
               />
             </div>
+            {me.role === "super_admin" && resetUser.id !== me.id ? (
+              <div className="field">
+                <CustomSelect
+                  label="Role"
+                  value={nextRole}
+                  onChange={(v) => setNextRole(v as "super_admin" | "admin" | "viewer")}
+                  options={[...ROLE_OPTIONS]}
+                  disabled={busy}
+                />
+              </div>
+            ) : null}
+            {me.role === "super_admin" ? (
+              <label className="check-line">
+                <input
+                  type="checkbox"
+                  checked={nextAssignable}
+                  onChange={(e) => setNextAssignable(e.target.checked)}
+                />
+                Can be assigned to reports
+              </label>
+            ) : null}
             <div className="field">
               <label htmlFor="reset-password">New password</label>
               <input
@@ -335,6 +374,16 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
               Role: Viewer
             </p>
           )}
+          {me.role === "super_admin" ? (
+            <label className="check-line">
+              <input
+                type="checkbox"
+                checked={createAssignable}
+                onChange={(e) => setCreateAssignable(e.target.checked)}
+              />
+              Can be assigned to reports
+            </label>
+          ) : null}
           <button className="btn btn-primary" type="submit" disabled={busy}>
             {busy ? "Creating…" : "Create user"}
           </button>
@@ -350,6 +399,7 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
               <th>User</th>
               <th>Role</th>
               <th>Company</th>
+              <th>Assignable</th>
               <th>Status</th>
               <th>Last sign-in</th>
               <th />
@@ -364,6 +414,25 @@ export function UsersAdmin({ me }: { me: OpsUser }) {
                 </td>
                 <td>{roleLabel(u.role)}</td>
                 <td>{companyLabel(u.company)}</td>
+                <td>
+                  {me.role === "super_admin" ? (
+                    <input
+                      type="checkbox"
+                      aria-label={`Assignable ${u.display_name}`}
+                      checked={u.assignable === true}
+                      onChange={() => {
+                        void opsApi
+                          .patchUser(u.id, { assignable: u.assignable !== true })
+                          .then(() => reload())
+                          .catch((err) => setError(err instanceof Error ? err.message : "update_failed"));
+                      }}
+                    />
+                  ) : u.assignable ? (
+                    "Yes"
+                  ) : (
+                    "No"
+                  )}
+                </td>
                 <td>{u.active === false ? "disabled" : "active"}</td>
                 <td>{formatLastLogin(u.last_login_at)}</td>
                 <td style={{ whiteSpace: "nowrap" }}>

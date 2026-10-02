@@ -45,6 +45,8 @@ export {
   setOpsUserPassword,
   setOpsUserUsername,
   setOpsUserCompany,
+  setOpsUserRole,
+  setOpsUserAssignable,
   createOpsSession,
   revokeOpsSession,
   resolveOpsSession,
