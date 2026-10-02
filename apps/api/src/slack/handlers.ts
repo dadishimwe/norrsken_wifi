@@ -248,13 +248,13 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env, workspaceId
     });
   });
 
-  bolt.view("wifi_report_form", async ({ ack, view, body }) => {
+  bolt.view("wifi_report_form", async ({ ack, view, body, client }) => {
     const draft = draftFromValues(view);
     const symptomErr = symptomError(draft.symptoms);
     const errors: Record<string, string> = {};
     if (symptomErr) errors.symptoms = symptomErr;
     const formValues = (view.state?.values ?? {}) as Values;
-    if (pickedAppIds(formValues).length > 5) errors.apps = "Pick up to 5 apps.";
+    if (pickedAppIds(formValues).length > 5) errors.other_app = "Pick up to 5 apps.";
     if (!draft.company.trim()) errors.company = "Tell us the company or place.";
     if (!validEmail(draft.contact_email)) errors.contact_email = "Enter a valid email.";
     if (Object.keys(errors).length > 0) {
@@ -262,18 +262,20 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env, workspaceId
       return;
     }
     const occurredAt = occurredAtFromPick(draft.occurred_date, draft.occurred_time);
+    // Slack drops the submission if this takes more than 3 seconds.
+    await ack({ response_action: "update", view: messageView("Sending", "Saving your report…") });
     try {
       const saved = await submitDraft(db, env, draft, body.user.id, "slack", workspaceId, occurredAt);
-      await ack({ response_action: "update", view: thanksView(saved.recent_count) });
+      await client.views.update({ view_id: view.id, view: thanksView(saved.recent_count) });
     } catch (err) {
-      await ack({
-        response_action: "update",
+      await client.views.update({
+        view_id: view.id,
         view: messageView("Couldn’t save", friendly(err)),
       });
     }
   });
 
-  bolt.view("wifi_metoo", async ({ ack, view, body }) => {
+  bolt.view("wifi_metoo", async ({ ack, view, body, client }) => {
     const draft = parseDraft(view.private_metadata);
     const company = text(view.state.values as Values, "company", "company").slice(0, 120);
     if (!company) {
@@ -285,12 +287,13 @@ export function registerSlackHandlers(bolt: App, db: Pool, env: Env, workspaceId
     draft.zone_source = "selected";
     draft.contact_ok = false;
     if (draft.symptoms.length === 0) draft.symptoms = ["no_internet"];
+    await ack({ response_action: "update", view: messageView("Sending", "Saving your report…") });
     try {
       const saved = await submitDraft(db, env, draft, body.user.id, "slack_metoo", workspaceId);
-      await ack({ response_action: "update", view: thanksView(saved.recent_count) });
+      await client.views.update({ view_id: view.id, view: thanksView(saved.recent_count) });
     } catch (err) {
-      await ack({
-        response_action: "update",
+      await client.views.update({
+        view_id: view.id,
         view: messageView("Couldn’t save", friendly(err)),
       });
     }

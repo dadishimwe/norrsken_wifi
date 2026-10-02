@@ -247,32 +247,29 @@ export async function createReport(
   }
 
   await upsertSession(db, actorHash, input.zone_id, input.wifi_context);
-  try {
-    const symptomId = input.symptoms[0];
-    const posted = await postReportAlert(
-      env,
-      {
-        company: input.company,
-        contactOk: input.contact_ok,
-        contactName: input.contact_ok ? input.contact_name : null,
-        place: zone.id === UNIVERSAL_ZONE_ID ? "House" : zone.label,
-        symptom: symptomId ? (SYMPTOM_LABELS[symptomId] ?? symptomId) : null,
-        url: env.PUBLIC_BASE_URL?.trim()
-          ? `${env.PUBLIC_BASE_URL.trim().replace(/\/$/, "")}/ops/?report=${reportId}`
-          : null,
-      },
-      alertWorkspace,
-    );
-    if (posted) {
+  const symptomId = input.symptoms[0];
+  const alertInput = {
+    company: input.company,
+    contactOk: input.contact_ok,
+    contactName: input.contact_ok ? input.contact_name : null,
+    place: zone.id === UNIVERSAL_ZONE_ID ? "House" : zone.label,
+    symptom: symptomId ? (SYMPTOM_LABELS[symptomId] ?? symptomId) : null,
+    url: env.PUBLIC_BASE_URL?.trim()
+      ? `${env.PUBLIC_BASE_URL.trim().replace(/\/$/, "")}/ops/?report=${reportId}`
+      : null,
+  };
+  void postReportAlert(env, alertInput, alertWorkspace)
+    .then(async (posted) => {
+      if (!posted) return;
       await db.query(`update report set alert_channel = $2, alert_ts = $3 where id = $1`, [
         reportId,
         posted.channel,
         posted.ts,
       ]);
-    }
-  } catch (err) {
-    console.error("slack alert", err instanceof Error ? err.message : "failed");
-  }
+    })
+    .catch((err) => {
+      console.error("slack alert", err instanceof Error ? err.message : "failed");
+    });
 
   const hasIncident = await zoneHasOpenIncident(db, input.zone_id);
   const ssidOptions = loadSsidOptions();
